@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SENSITIVITY_RANGE, Settings } from '../src/settings.js';
 
-const storageWith = (value) => ({ items: { 'block-walker-settings': value }, getItem(key) { return this.items[key] ?? null; }, setItem(key, v) { this.items[key] = v; } });
+const storageWith = (value) => ({ items: { 'block-walker-settings-v2': value }, getItem(key) { return this.items[key] ?? null; }, setItem(key, v) { this.items[key] = v; } });
 
 test('without stored settings the defaults apply: toggle on, sensitivity 1', () => {
   const settings = new Settings(storageWith(undefined));

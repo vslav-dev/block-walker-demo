@@ -10,6 +10,9 @@ import { CameraRig } from './camera-rig.js';
 import { screenToWorld } from './angles.js';
 import { Settings } from './settings.js';
 import { SettingsScreen } from './settings-screen.js';
+import { Tunables } from './tunables.js';
+import { DebugPanel } from './debug-panel.js';
+import { ZOOM_TUNABLES } from './zoom.js';
 
 const SUN_OFFSET = new THREE.Vector3(-10, 24, 14);
 const SKY_COLOR = 0x9ec9e8;
@@ -50,10 +53,11 @@ const worldView = new WorldView(world, scene);
 const body = new PlayerBody(world, spawn.x, spawn.z);
 const settings = new Settings();
 const input = new Input(renderer.domElement, settings);
-const settingsScreen = new SettingsScreen(settings, () => input.reset());
+const settingsScreen = new SettingsScreen(settings, { onOpen: () => input.reset(), onResume: () => input.resume() });
 const aim = new Aim(settings);
 const aimLine = new AimLine(world);
-const rig = new CameraRig(camera, body.x, body.y, body.z);
+const tunables = new Tunables([...ZOOM_TUNABLES]);
+const rig = new CameraRig(camera, body.x, body.y, body.z, tunables.values);
 scene.add(aimLine.root);
 
 addEventListener('keydown', (e) => {
@@ -75,10 +79,24 @@ try {
 const playerPosition = new THREE.Vector3();
 let visualY = body.y;
 let last = performance.now();
+let fps = 60;
+
+const degrees = (radians) => `${((radians * 180) / Math.PI).toFixed(1)}°`;
+const debug = new DebugPanel(tunables);
+debug.watch('FPS', () => fps.toFixed(0));
+debug.watch('Zoom (0 close … 1 far)', () => rig.zoom.value.toFixed(3));
+debug.watch('Camera distance', () => rig.zoom.distance.toFixed(2));
+debug.watch('Camera pitch', () => degrees(rig.zoom.pitch));
+debug.watch('Camera heading', () => degrees(rig.heading));
+debug.watch('Aim mode', () => (aim.aiming ? 'on' : 'off'));
+debug.watch('Aim yaw', () => degrees(aim.yaw));
+debug.watch('Player x / y / z', () => [body.x, body.y, body.z].map((v) => v.toFixed(2)).join(' / '));
 
 renderer.setAnimationLoop((time) => {
   const dt = Math.min((time - last) / 1000, 0.05);
+  fps += (1000 / Math.max(time - last, 1) - fps) * 0.05;
   last = time;
+  debug.update(dt);
   if (settingsScreen.open) {
     renderer.render(scene, camera); // the game stands still behind the settings
     return;
@@ -96,7 +114,7 @@ renderer.setAnimationLoop((time) => {
   // The camera follows the player and looks where the aim says (one frame late, which its own smoothing hides);
   // the sun follows the camera's target.
   playerPosition.set(body.x, visualY, body.z);
-  rig.update(dt, playerPosition, aim.heading);
+  rig.update(dt, playerPosition, aim.heading, input.takeWheelY());
   worldView.update(body.x, body.y, body.z, camera, dt);
   sun.position.copy(rig.target).add(SUN_OFFSET);
   sun.target.position.copy(rig.target);

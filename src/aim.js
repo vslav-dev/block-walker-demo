@@ -1,7 +1,7 @@
 import { NORTH, turnToward, wrapAngle } from './angles.js';
 
 const YAW_SPEED = 18; // how fast the character turns to where it is aimed
-const LOOK_PER_PIXEL = 0.002; // radians per pixel of mouse movement while aiming, at the sensitivity 1
+const LOOK_PER_PIXEL = 0.0015; // radians per pixel of mouse movement while aiming, at the sensitivity 1, the usual one
 
 // Where the character looks and where the camera should look. Pure logic, no rendering.
 // Overview: the character looks at the cursor and the camera looks north.

@@ -1,12 +1,14 @@
 import { SENSITIVITY_RANGE } from './settings.js';
 
-// The settings page over the game: Escape opens and closes it, the game stands still while it is open.
+// The settings page over the game: the gear button opens it, the game stands still while it is open.
 // The markup is in index.html; this only wires it to the settings.
 export class SettingsScreen {
-  // onOpen is called when the page opens, to drop what the game holds on to (pressed keys, the aim mode).
-  constructor(settings, onOpen) {
+  // onOpen is called when the page opens, to drop what the game holds on to (pressed keys),
+  // onResume when it is closed, to take back what it let go of (the pointer in the aim mode).
+  constructor(settings, { onOpen, onResume }) {
     this.settings = settings;
     this.onOpen = onOpen;
+    this.onResume = onResume;
     this.root = document.querySelector('#settings');
     const aimToggle = document.querySelector('#aim-toggle');
     const sensitivity = document.querySelector('#sensitivity');
@@ -26,14 +28,10 @@ export class SettingsScreen {
       showSensitivity();
       settings.save();
     });
+    document.querySelector('#settings-open').addEventListener('click', () => this.show());
     document.querySelector('#settings-close').addEventListener('click', () => this.hide());
     this.root.addEventListener('click', (e) => {
       if (e.target === this.root) this.hide(); // a click beside the panel
-    });
-    addEventListener('keydown', (e) => {
-      if (e.code !== 'Escape' || e.repeat) return;
-      if (this.open) this.hide();
-      else this.show();
     });
   }
 
@@ -44,10 +42,12 @@ export class SettingsScreen {
   show() {
     this.onOpen();
     this.root.hidden = false;
+    document.activeElement?.blur(); // Space or Enter must not press the gear again
   }
 
   hide() {
     this.root.hidden = true;
     document.activeElement?.blur(); // Space or Enter must not press the focused control again
+    this.onResume();
   }
 }

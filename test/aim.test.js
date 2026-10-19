@@ -54,7 +54,7 @@ test('while aiming the mouse turns the view and the character with it, the curso
   const aim = new Aim(settings);
   run(aim, 1, false, 0, NORTH);
   run(aim, 1, true, 100, EAST); // 100 px to the right
-  close(aim.heading, NORTH - 0.2, 'turning right lowers the yaw');
+  close(aim.heading, NORTH - 0.15, 'turning right lowers the yaw');
   close(aim.yaw, aim.heading, 'the character looks where the camera looks');
 });
 
@@ -62,7 +62,7 @@ test('the mouse sensitivity of the settings scales the turn', () => {
   const aim = new Aim({ mouseSensitivity: 2 });
   run(aim, 1, false, 0, NORTH);
   run(aim, 1, true, 100, null);
-  close(aim.heading, NORTH - 0.4, 'twice the turn');
+  close(aim.heading, NORTH - 0.3, 'twice the turn');
 });
 
 test('releasing the aim sends the camera back north', () => {

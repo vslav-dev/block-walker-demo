@@ -9,6 +9,18 @@
     canvas { display: block; }
     #hud, #status { position: fixed; padding: 8px 12px; color: #fff; background: rgba(20, 24, 30, 0.6); border-radius: 8px; pointer-events: none; }
     #hud { left: 12px; top: 12px; }
+    #settings-open { position: fixed; right: 12px; top: 12px; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; color: #fff; background: rgba(20, 24, 30, 0.6); border: 0; border-radius: 8px; cursor: pointer; }
+    #settings-open:hover { background: rgba(20, 24, 30, 0.85); }
+    #debug { position: fixed; right: 12px; top: 56px; bottom: 12px; width: 340px; box-sizing: border-box; padding: 10px 12px; overflow-y: auto; color: #e6eaf0; background: rgba(20, 24, 30, 0.85); border-radius: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+    #debug[hidden] { display: none; }
+    #debug h2 { margin: 0 0 6px; font-size: 13px; }
+    #debug h3 { margin: 12px 0 4px; font-size: 12px; color: #9fb3c8; }
+    #debug .debug-state > div, #debug .debug-row > div { display: flex; gap: 6px; align-items: center; justify-content: space-between; }
+    #debug .debug-row { margin: 6px 0; }
+    #debug input[type="range"] { flex: 1; min-width: 0; }
+    #debug input[type="number"] { width: 64px; }
+    #debug .debug-actions { display: flex; gap: 8px; margin-top: 12px; }
+    #debug textarea { width: 100%; box-sizing: border-box; margin-top: 8px; font: inherit; }
     #settings { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.4); }
     #settings[hidden] { display: none; }
     #settings .panel { display: grid; gap: 14px; min-width: 320px; padding: 20px 24px; color: #fff; background: rgba(20, 24, 30, 0.92); border-radius: 12px; }
@@ -29,14 +41,18 @@
   </script>
 </head>
 <body>
-  <div id="hud">WASD — move · Mouse — look · Right button — aim · Shift — run · Esc — settings · R — new world (seed <span id="seed"></span>)</div>
+  <div id="hud">WASD — move · Mouse — look · Right button — aim · Scroll — zoom · Shift — run · F3 — debug · R — new world (seed <span id="seed"></span>)</div>
   <div id="status">Loading…</div>
+  <button id="settings-open" title="Settings" aria-label="Settings">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
+  <aside id="debug" hidden></aside>
   <div id="settings" hidden>
     <div class="panel">
       <h2>Settings</h2>
       <label><input type="checkbox" id="aim-toggle"> Right button switches the aim on and off (otherwise hold it)</label>
       <label>Mouse sensitivity <input type="range" id="sensitivity"> <output id="sensitivity-value"></output></label>
-      <button id="settings-close">Close (Esc)</button>
+      <button id="settings-close">Close</button>
     </div>
   </div>
   <script type="module" src="./src/main.js"></script>

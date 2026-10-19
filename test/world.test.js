@@ -4,7 +4,7 @@ import { Block, DOOR_H, STOREY_H, StairDir, Top, WALL_SIDES, WALL_THICKNESS, Wal
 import { BODY_H, World } from '../src/world.js';
 import { PlayerBody, RADIUS, RUN_SPEED, WALL_REACH } from '../src/player.js';
 import { generateWorld } from '../src/generator.js';
-import { doorHint } from '../src/door-hint.js';
+import { beaconProximity, doorHint, footprintDistance } from '../src/door-hint.js';
 
 const DT = 1 / 60;
 const GRID_STEP = 0.1;
@@ -250,6 +250,26 @@ test('the sides facing a direction', () => {
   assert.equal(sidesFacing(0, -1, 0.15), WallSide.North);
   assert.equal(sidesFacing(Math.SQRT1_2, Math.SQRT1_2, 0.15), WallSide.South | WallSide.East);
   assert.equal(sidesFacing(Math.sin(0.1), Math.cos(0.1), 0.15), WallSide.South, 'a wall almost edge-on is not facing');
+});
+
+test('the distance to a house is the distance to its nearest point, the same along a whole wall', () => {
+  const house = { x0: 10, x1: 13, z0: 20, z1: 22 }; // the cells 10..14 by 20..23, so the footprint is [10, 14] x [20, 23]
+  assert.equal(footprintDistance(house, 12, 21), 0, 'inside');
+  assert.equal(footprintDistance(house, 9, 21), 1, 'beside the west wall');
+  assert.equal(footprintDistance(house, 9, 22.9), 1, 'the same further along it');
+  assert.equal(footprintDistance(house, 12, 27), 4, 'beside the south wall');
+  assert.equal(footprintDistance(house, 17, 27), 5, 'off the corner: 3 and 4');
+});
+
+test('a beacon fades in between 4 and 3 blocks from the house, wherever its door is, and out again at the door', () => {
+  const far = 10; // far from the door: only the house counts
+  assert.equal(beaconProximity(30, far), 0, 'a house far away is of no interest');
+  assert.equal(beaconProximity(4, far), 0, 'invisible at 4');
+  assert.equal(beaconProximity(3.5, far), 0.5, 'half way');
+  assert.equal(beaconProximity(3, far), 1, 'full at 3');
+  assert.equal(beaconProximity(0.3, far), 1, 'at the wall, far from the door: still full');
+  assert.equal(beaconProximity(0.3, 1.5), 0.5, 'dimmed on arrival at the door');
+  assert.equal(beaconProximity(0.3, 1), 0, 'gone at the door');
 });
 
 test('the tested seeds contain staircases', () => {

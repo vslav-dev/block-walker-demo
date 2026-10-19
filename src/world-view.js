@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DoorBeacon } from './door-beacon.js';
-import { doorHint } from './door-hint.js';
+import { beaconProximity, doorHint, footprintDistance } from './door-hint.js';
 import {
   Block, BlockColor, FRAME_COLOR, FRAME_WIDTH, STAIR_STEPS, STOREY_H, Top, TopColor, WALL_COLOR, WALL_SIDES, WALL_THICKNESS,
   frameHasHeader, frameHasSill, frameSide, isStairs, sidesFacing, storeyAt,
@@ -34,10 +34,6 @@ const BODY_RADIUS = 0.3; // half the footprint of the body: a wall keeps it fart
 const BODY_HEIGHTS = [0.15, 0.9, 1.65]; // feet, chest, head
 const BODY_HALF_WIDTH_ENTER = BODY_RADIUS; // standing flush against a side wall is not hidden
 const BODY_HALF_WIDTH_LEAVE = 0.45; // wider while hidden, so that the building does not flicker back and forth at the edge
-// The beacon of a door that is out of sight (see doorHint) is dimmed as the player gets close to it: there is nothing to
-// hint at any more, and the mat would tint the player standing on it.
-const BEACON_NEAR_START = 1.5; // the beacon is gone this close to the door,
-const BEACON_NEAR_END = 3.5; // and fully there this far from it
 const MARKER_PLATE_TINT = 0.3; // how much of the roof's color the footprint plate has
 const MARKER_EDGE_OPACITY = 0.6;
 const MARKER_EDGE_COLOR = 0xf2e6d0;
@@ -273,8 +269,9 @@ export class WorldView {
     this.time += dt;
     for (const beacon of this.beacons) {
       const { door } = beacon;
-      const near = THREE.MathUtils.clamp((Math.hypot(x - (door.x + 0.5), z - (door.z + 0.5)) - BEACON_NEAR_START) / (BEACON_NEAR_END - BEACON_NEAR_START), 0, 1);
-      const inside = this.bodyTouches(this.buildings.get(door.building), x, z);
+      const house = this.buildings.get(door.building);
+      const near = beaconProximity(footprintDistance(house, x, z), Math.hypot(x - (door.x + 0.5), z - (door.z + 0.5)));
+      const inside = this.bodyTouches(house, x, z);
       beacon.update(inside ? 0 : doorHint(door, cameraPosition.x, cameraPosition.z) * near, k, this.time);
     }
 
