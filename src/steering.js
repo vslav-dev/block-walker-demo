@@ -1,5 +1,6 @@
 // How the robot's body is oriented relative to its movement and the cursor. Pure math, no rendering.
 // The legs follow the movement, the upper body follows the cursor, and the robot backpedals when moving against it.
+import { turnToward, wrapAngle } from './angles.js';
 
 const DEG = Math.PI / 180;
 const LEGS_TURN_SPEED = 14; // how fast legs follow the movement direction
@@ -10,7 +11,6 @@ const MAX_TWIST = 120 * DEG; // hard limit for the spine, even in the middle of 
 const BACKPEDAL_ENTER = 100 * DEG;
 const BACKPEDAL_EXIT = 80 * DEG;
 
-export const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
 export class Steering {
@@ -35,6 +35,6 @@ export class Steering {
   }
 
   turnLegs(target, speed, dt) {
-    this.legsYaw = wrapAngle(this.legsYaw + wrapAngle(target - this.legsYaw) * (1 - Math.exp(-speed * dt)));
+    this.legsYaw = turnToward(this.legsYaw, target, speed, dt);
   }
 }

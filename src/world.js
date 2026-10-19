@@ -1,7 +1,8 @@
-import { Block, CUBE_RECTS, Top, WALL_RECTS, WALL_THICKNESS, isCube, isStairs, overlapsAny, stairHeight } from './blocks.js';
+import { Block, CUBE_RECTS, Top, WALL_RECTS, WALL_SIDES, WALL_THICKNESS, isCube, isStairs, overlapsAny, stairHeight } from './blocks.js';
 
 export const STEP_UP = 0.55; // max height a character climbs without jumping
 export const BODY_H = 1.7; // character height used for collisions
+const RAY_STEP = 0.05; // how far a ray moves between two checks; thinner than a cell, so nothing is skipped
 
 // Voxel grid + collision queries. Blocks are stored in a flat array, x fastest, then z, then y.
 export class World {
@@ -106,6 +107,42 @@ export class World {
       if (isCube(id)) break;
     }
     return Block.Air;
+  }
+
+  // How far a horizontal ray from (x, y, z) along the unit direction (dx, dz) goes before it meets a cube, a stairs surface,
+  // a wall or the edge of the world, at most maxDist. Windows and doorways are open. Floors are not met: they lie between
+  // the rows of cells, and a level ray stays within its row.
+  castRay(x, y, z, dx, dz, maxDist) {
+    const cy = Math.floor(y);
+    let cx = Math.floor(x);
+    let cz = Math.floor(z);
+    for (let t = RAY_STEP; t < maxDist; t += RAY_STEP) {
+      const px = x + dx * t;
+      const pz = z + dz * t;
+      const nx = Math.floor(px);
+      const nz = Math.floor(pz);
+      const blocked = !this.inBounds(nx, cy, nz)
+        || (nx !== cx && this.wallBetween(cx, cz, nx, cz, cy))
+        || (nz !== cz && this.wallBetween(nx, cz, nx, nz, cy))
+        || this.solidAt(nx, cy, nz, y, px - nx, pz - nz);
+      if (blocked) return t - RAY_STEP;
+      cx = nx;
+      cz = nz;
+    }
+    return maxDist;
+  }
+
+  // Is the point at height y, fx/fz inside the cell (cx, cy, cz), inside a cube or under the surface of stairs?
+  solidAt(cx, cy, cz, y, fx, fz) {
+    const id = this.get(cx, cy, cz);
+    return isCube(id) || (isStairs(id) && y - cy < stairHeight(id, fx, fz));
+  }
+
+  // Is there a wall slab on the border between two neighboring cells at storey row y? It belongs to either of the two cells.
+  wallBetween(ax, az, bx, bz, y) {
+    const toward = WALL_SIDES.find((side) => side.dx === bx - ax && side.dz === bz - az);
+    const back = WALL_SIDES.find((side) => side.dx === ax - bx && side.dz === az - bz);
+    return (this.getWalls(ax, y, az) & toward.bit) !== 0 || (this.getWalls(bx, y, bz) & back.bit) !== 0;
   }
 
   // Can a character with feet at y fit around (x, z)? Cubes, floors and wall slabs from STEP_UP above the feet up to the head

@@ -1,8 +1,9 @@
 import { WALL_SIDES } from './blocks.js';
 
 // A door is plainly visible from the camera once the camera is this many blocks in front of its wall.
-// The camera looks north from the south, so doors in the south wall are always seen, doors in the west and east walls
-// only from their side of the house, and doors in the north wall never.
+// The camera looks across the house from one side, so only doors in the walls facing it are seen. With the camera looking
+// north, the doors in the south wall are always seen, in the west and east walls only from their side of the house,
+// and in the north wall never.
 const VISIBLE_FROM = 4;
 
 // How much the door needs a hint, from 0 (the camera sees it well) to 1 (it is on the far or the edge-on side of its wall).

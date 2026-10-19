@@ -4,19 +4,19 @@ import { WorldView } from './world-view.js';
 import { PlayerBody, WALK_SPEED, RUN_SPEED } from './player.js';
 import { loadRobot } from './robot.js';
 import { Input } from './input.js';
+import { Aim } from './aim.js';
+import { AimLine } from './aim-line.js';
+import { CameraRig } from './camera-rig.js';
+import { screenToWorld } from './angles.js';
+import { Settings } from './settings.js';
+import { SettingsScreen } from './settings-screen.js';
 
-const CAMERA_PITCH = THREE.MathUtils.degToRad(52); // fixed, looking north from above
-const CAMERA_DISTANCE = 26;
 const SUN_OFFSET = new THREE.Vector3(-10, 24, 14);
 const SKY_COLOR = 0x9ec9e8;
 
 const status = document.querySelector('#status');
 const seed = Number(new URLSearchParams(location.search).get('seed')) || Math.floor(Math.random() * 1e6);
 document.querySelector('#seed').textContent = seed;
-
-addEventListener('keydown', (e) => {
-  if (e.code === 'KeyR') location.search = `?seed=${Math.floor(Math.random() * 1e6)}`;
-});
 
 // --- scene ---
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -48,7 +48,17 @@ addEventListener('resize', () => {
 const { world, spawn } = generateWorld(seed);
 const worldView = new WorldView(world, scene);
 const body = new PlayerBody(world, spawn.x, spawn.z);
-const input = new Input();
+const settings = new Settings();
+const input = new Input(renderer.domElement, settings);
+const settingsScreen = new SettingsScreen(settings, () => input.reset());
+const aim = new Aim(settings);
+const aimLine = new AimLine(world);
+const rig = new CameraRig(camera, body.x, body.y, body.z);
+scene.add(aimLine.root);
+
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyR' && !settingsScreen.open) location.search = `?seed=${Math.floor(Math.random() * 1e6)}`;
+});
 
 // --- robot ---
 let robot = null; // stays null if the model fails to load
@@ -62,58 +72,42 @@ try {
 }
 
 // --- loop ---
-const raycaster = new THREE.Raycaster();
-const aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0));
-const aimPoint = new THREE.Vector3();
 const playerPosition = new THREE.Vector3();
-const cameraTarget = new THREE.Vector3(body.x, body.y, body.z);
 let visualY = body.y;
-let yaw = 0;
 let last = performance.now();
 
 renderer.setAnimationLoop((time) => {
   const dt = Math.min((time - last) / 1000, 0.05);
   last = time;
+  if (settingsScreen.open) {
+    renderer.render(scene, camera); // the game stands still behind the settings
+    return;
+  }
 
-  // Movement: screen-relative because the camera never rotates (W = up the screen).
+  // Movement is relative to the camera: W = up the screen, which is north in the overview and the aim in the aim mode.
   const axis = input.moveAxis();
   const length = Math.hypot(axis.x, axis.z);
-  const moveX = length ? axis.x / length : 0;
-  const moveZ = length ? axis.z / length : 0;
+  const move = screenToWorld(length ? axis.x / length : 0, length ? axis.z / length : 0, rig.heading);
   const running = input.running && !robot?.steering.backpedal; // no running backwards
   const speed = running ? RUN_SPEED : WALK_SPEED;
-  body.update(dt, moveX * speed, moveZ * speed);
+  body.update(dt, move.x * speed, move.z * speed);
   visualY += (body.y - visualY) * (1 - Math.exp(-25 * dt)); // smooths stair steps
 
-  // Camera and sun follow the player.
+  // The camera follows the player and looks where the aim says (one frame late, which its own smoothing hides);
+  // the sun follows the camera's target.
   playerPosition.set(body.x, visualY, body.z);
-  cameraTarget.lerp(playerPosition, 1 - Math.exp(-8 * dt));
-  camera.position.set(
-    cameraTarget.x,
-    cameraTarget.y + Math.sin(CAMERA_PITCH) * CAMERA_DISTANCE,
-    cameraTarget.z + Math.cos(CAMERA_PITCH) * CAMERA_DISTANCE,
-  );
-  camera.lookAt(cameraTarget);
-  camera.updateMatrixWorld();
-  worldView.update(body.x, body.y, body.z, camera.position, dt);
-  sun.position.copy(cameraTarget).add(SUN_OFFSET);
-  sun.target.position.copy(cameraTarget);
+  rig.update(dt, playerPosition, aim.heading);
+  worldView.update(body.x, body.y, body.z, camera, dt);
+  sun.position.copy(rig.target).add(SUN_OFFSET);
+  sun.target.position.copy(rig.target);
 
-  // Face the cursor: project it onto a horizontal plane at chest height.
-  aimPlane.constant = -(visualY + 1);
-  raycaster.setFromCamera(input.mouse, camera);
-  if (raycaster.ray.intersectPlane(aimPlane, aimPoint)) {
-    const dx = aimPoint.x - body.x;
-    const dz = aimPoint.z - body.z;
-    if (Math.hypot(dx, dz) > 0.2) {
-      const delta = Math.atan2(dx, dz) - yaw;
-      yaw += Math.atan2(Math.sin(delta), Math.cos(delta)) * (1 - Math.exp(-18 * dt));
-    }
-  }
+  // The character looks at the cursor, or where the mouse has turned the view in the aim mode.
+  aim.update(dt, input.aiming, input.takeLookX(), rig.cursorYaw(input.mouse, body.x, visualY, body.z));
+  aimLine.update(aim.aiming, body.x, visualY, body.z, aim.yaw);
 
   if (robot) {
     robot.setPosition(body.x, visualY, body.z);
-    robot.update(dt, yaw, moveX, moveZ, input.running);
+    robot.update(dt, aim.yaw, move.x, move.z, input.running);
   }
 
   renderer.render(scene, camera);

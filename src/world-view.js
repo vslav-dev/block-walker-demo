@@ -3,29 +3,27 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { DoorBeacon } from './door-beacon.js';
 import { doorHint } from './door-hint.js';
 import {
-  Block, BlockColor, FRAME_COLOR, FRAME_WIDTH, STAIR_STEPS, STOREY_H, Top, TopColor, WALL_COLOR, WALL_SIDES, WALL_THICKNESS, WallSide,
-  frameHasHeader, frameHasSill, frameSide, isStairs, storeyAt,
+  Block, BlockColor, FRAME_COLOR, FRAME_WIDTH, STAIR_STEPS, STOREY_H, Top, TopColor, WALL_COLOR, WALL_SIDES, WALL_THICKNESS,
+  frameHasHeader, frameHasSill, frameSide, isStairs, sidesFacing, storeyAt,
 } from './blocks.js';
 
-// Mesh types of the slabs and frames, next to the block ids. The south wall is the one between the camera and the player,
-// so its parts are meshes of their own that can fade; the parts of all other walls are plain opaque ones.
-// A wall part is the slab itself or one of the bars of a frame.
+// Mesh types of the slabs and frames, next to the block ids. A wall part is the slab itself or one of the bars of a frame.
+// The walls between the camera and the player fade, so every side of the walls of a storey is a layer of its own.
 const WallPart = { Slab: 'slab', Posts: 'posts', Header: 'header', Sill: 'sill' };
-const wallType = (part, south) => `${south ? 'south-' : ''}wall-${part}`;
-const isSouthType = (type) => typeof type === 'string' && type.startsWith('south-');
+const wallType = (part) => `wall-${part}`;
 const isWallType = (type) => typeof type === 'string' && type.startsWith('wall-');
 const topType = (kind) => `top-${kind}`; // floors and roofs, one type per Top kind
 const isTopType = (type) => typeof type === 'string' && type.startsWith('top-');
 const FRAME_DEPTH = WALL_THICKNESS + 0.04; // a frame is a little deeper than the wall, so it stands out of it
-const wallColors = Object.fromEntries([false, true].flatMap((south) => Object.values(WallPart)
-  .map((part) => [wallType(part, south), part === WallPart.Slab ? WALL_COLOR : FRAME_COLOR])));
+const wallColors = Object.fromEntries(Object.values(WallPart).map((part) => [wallType(part), part === WallPart.Slab ? WALL_COLOR : FRAME_COLOR]));
 const COLORS = {
   ...BlockColor,
   ...wallColors,
   ...Object.fromEntries(Object.entries(TopColor).map(([kind, color]) => [topType(kind), color])),
 };
-const WALL_FADED_OPACITY = 0.2; // the south wall fades to this opacity while the player is inside
+const WALL_FADED_OPACITY = 0.2; // the walls facing the camera fade to this opacity while the player is inside
 const WALL_FADE_SPEED = 10;
+const WALL_FACING = 0.15; // a side faces the camera when its normal points this much (cosine) at it: a wall seen edge-on does not
 
 // A building that hides the player from the camera, wholly or partly, disappears at once. Only a marker of its
 // footprint and outline stays, so the player and everything behind the building are visible.
@@ -50,6 +48,7 @@ const _unit = new THREE.Vector3(1, 1, 1);
 const _matrix = new THREE.Matrix4();
 const _color = new THREE.Color();
 const _axisY = new THREE.Vector3(0, 1, 0);
+const _right = new THREE.Vector3();
 const _sample = new THREE.Vector3();
 const _direction = new THREE.Vector3();
 const _hit = new THREE.Vector3();
@@ -78,9 +77,9 @@ function createWallPartGeometry(part) {
   return new THREE.BoxGeometry(1, 1, WALL_THICKNESS).translate(0, 0, -0.5 + WALL_THICKNESS / 2);
 }
 
-// The south wall is drawn in two passes: the first writes only depth, the second blends the color. So just the nearest
-// surface of the wall shows through when it is faded, not the faces between its stacked blocks. The first pass is
-// pushed back, so that the second one (pulled forward) always passes its own depth.
+// A faded wall is drawn in two passes: the first writes only depth, the second blends the color. So just the nearest
+// surface of the wall shows through, not the faces between its stacked blocks. The first pass is pushed back, so that
+// the second one (pulled forward) always passes its own depth. A material that is not an array draws the whole geometry once.
 function withTwoPasses(geometry) {
   geometry.clearGroups();
   geometry.addGroup(0, geometry.index.count, 0); // depth pass
@@ -99,20 +98,14 @@ function createTopGeometry() {
 const storeyOfBlock = (y) => Math.max(0, Math.floor((y - 1) / STOREY_H));
 const storeyOfTop = (y) => Math.floor(y / STOREY_H);
 
-// One instance per slab of a wall cell.
-function wallInstances(sides, x, y, z) {
-  return WALL_SIDES.filter((side) => (sides & side.bit) !== 0).map((side) => ({ x, y, z, rotY: side.rotY }));
-}
-
 // The parts of the frame in a cell as [type, instances]: posts, and a header and a sill if it has them.
 function frameParts(frame, x, y, z) {
   const side = WALL_SIDES.find((s) => s.bit === frameSide(frame));
-  const south = side.bit === WallSide.South;
   const instances = [{ x, y, z, rotY: side.rotY }];
   return [
-    [wallType(WallPart.Posts, south), instances],
-    ...(frameHasHeader(frame) ? [[wallType(WallPart.Header, south), instances]] : []),
-    ...(frameHasSill(frame) ? [[wallType(WallPart.Sill, south), instances]] : []),
+    [wallType(WallPart.Posts), instances],
+    ...(frameHasHeader(frame) ? [[wallType(WallPart.Header), instances]] : []),
+    ...(frameHasSill(frame) ? [[wallType(WallPart.Sill), instances]] : []),
   ];
 }
 
@@ -196,10 +189,7 @@ export class WorldView {
     const topGeometry = createTopGeometry();
     const geometries = { [Block.Stairs]: stairsGeometry };
     for (const kind of Object.values(Top)) geometries[topType(kind)] = topGeometry;
-    for (const part of Object.values(WallPart)) {
-      geometries[wallType(part, false)] = createWallPartGeometry(part);
-      geometries[wallType(part, true)] = withTwoPasses(createWallPartGeometry(part));
-    }
+    for (const part of Object.values(WallPart)) geometries[wallType(part)] = withTwoPasses(createWallPartGeometry(part));
     // What a layer that is out of view is drawn with: nothing. A mesh that is not `visible` would also be left out of the
     // shadow map, and the roof must keep shading the rooms below it with the roof taken off the view.
     const hiddenMaterial = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
@@ -210,11 +200,12 @@ export class WorldView {
     const materials = new Map();
     const groups = new Map();
 
-    const addInstances = (type, storey, x, z, instances) => {
+    // side = the WallSide of a wall part, 0 for everything else.
+    const addInstances = (type, storey, x, z, instances, side = 0) => {
       const building = world.buildingAt(x, z);
-      const key = `${type}|${building}|${storey}`;
+      const key = `${type}|${building}|${storey}|${side}`;
       let group = groups.get(key);
-      if (!group) groups.set(key, (group = { type, building, storey, cells: [] }));
+      if (!group) groups.set(key, (group = { type, side, building, storey, cells: [] }));
       group.cells.push(...instances);
     };
 
@@ -227,12 +218,12 @@ export class WorldView {
           else if (id !== Block.Air) addInstances(id, storey, x, z, [{ x, y, z, rotY: 0 }]);
 
           const sides = world.getWalls(x, y, z);
-          const others = sides & ~WallSide.South;
-          if (others) addInstances(wallType(WallPart.Slab, false), storey, x, z, wallInstances(others, x, y, z));
-          if (sides & WallSide.South) addInstances(wallType(WallPart.Slab, true), storey, x, z, wallInstances(WallSide.South, x, y, z));
+          for (const side of WALL_SIDES) {
+            if (sides & side.bit) addInstances(wallType(WallPart.Slab), storey, x, z, [{ x, y, z, rotY: side.rotY }], side.bit);
+          }
 
           const frame = world.getFrame(x, y, z);
-          if (frame) for (const [type, instances] of frameParts(frame, x, y, z)) addInstances(type, storey, x, z, instances);
+          if (frame) for (const [type, instances] of frameParts(frame, x, y, z)) addInstances(type, storey, x, z, instances, frameSide(frame));
 
           const top = world.getTop(x, y, z);
           if (top !== Top.None) addInstances(topType(top), storeyOfTop(y), x, z, [{ x, y, z, rotY: 0 }]);
@@ -240,16 +231,16 @@ export class WorldView {
       }
     }
 
-    for (const { type, building, storey, cells } of groups.values()) {
-      const isSouthWall = isSouthType(type);
-      if (!isSouthWall && !materials.has(type)) {
-        materials.set(type, isWallType(type) ? wallMaterial(type) : new THREE.MeshStandardMaterial({ color: COLORS[type], roughness: 0.95 }));
+    for (const { type, side, building, storey, cells } of groups.values()) {
+      const isWall = isWallType(type);
+      if (!materials.has(type)) {
+        materials.set(type, isWall ? wallMaterial(type) : new THREE.MeshStandardMaterial({ color: COLORS[type], roughness: 0.95 }));
       }
-      // Every south wall fades on its own, so it has its own material.
-      const material = isSouthWall ? wallMaterial(type, { transparent: true, depthWrite: false }) : materials.get(type);
-      // The south wall has a material per pass, see its geometry groups.
-      const shownMaterial = isSouthWall ? [depthPassMaterial, material] : material;
-      const invisibleMaterial = isSouthWall ? [hiddenMaterial, hiddenMaterial] : hiddenMaterial;
+      const shownMaterial = materials.get(type);
+      // A wall fades on its own, so it has its own material, drawn in the two passes of its geometry while it is not opaque.
+      // It is opaque most of the time: a fading wall would hide what is behind it from the walls drawn after it.
+      const fadeMaterial = isWall ? wallMaterial(type, { transparent: true, depthWrite: false }) : null;
+      const fadingMaterial = isWall ? [depthPassMaterial, fadeMaterial] : null;
       const mesh = new THREE.InstancedMesh(geometries[type] ?? boxGeometry, shownMaterial, cells.length);
       mesh.castShadow = !(isTopType(type) && storey === 0); // the ground level needs no shadow, nothing is below it
       mesh.receiveShadow = true;
@@ -258,15 +249,21 @@ export class WorldView {
         mesh.setColorAt(i, _color.setScalar(0.86 + 0.14 * noise(cell.x, cell.y, cell.z)));
       });
       scene.add(mesh);
-      this.layers.push({ type, owner: this.buildings.get(building), building, storey, mesh, material, shownMaterial, invisibleMaterial, opacity: 1 });
+      this.layers.push({
+        side, owner: this.buildings.get(building), building, storey, mesh, shownMaterial, fadeMaterial, fadingMaterial, invisibleMaterial: hiddenMaterial, opacity: 1,
+      });
     }
   }
 
-  // Called every frame with the player's position and the camera's.
-  update(x, y, z, cameraPosition, dt) {
+  // Called every frame with the player's position and the camera, whose matrices are up to date.
+  update(x, y, z, camera, dt) {
+    const cameraPosition = camera.position;
     const building = this.world.buildingAt(Math.floor(x), Math.floor(z));
     const storey = storeyAt(y);
     const k = 1 - Math.exp(-WALL_FADE_SPEED * dt);
+    _right.setFromMatrixColumn(camera.matrixWorld, 0); // horizontal: the camera does not roll, only pitches and turns
+    const toCamera = _direction.set(cameraPosition.x - x, 0, cameraPosition.z - z).normalize();
+    const facing = sidesFacing(toCamera.x, toCamera.z, WALL_FACING);
 
     for (const b of this.buildings.values()) {
       b.hidden = !this.bodyTouches(b, x, z) && this.hidesPlayer(b, x, y, z, cameraPosition, b.hidden ? BODY_HALF_WIDTH_LEAVE : BODY_HALF_WIDTH_ENTER);
@@ -284,8 +281,9 @@ export class WorldView {
     for (const layer of this.layers) {
       const inside = building !== 0 && layer.building === building;
       const inView = !(inside && layer.storey > storey) && !layer.owner?.hidden;
-      layer.mesh.material = inView ? layer.shownMaterial : layer.invisibleMaterial;
-      if (isSouthType(layer.type)) this.fadeSouthWall(layer, inside && layer.storey === storey, k);
+      if (layer.fadeMaterial) this.fadeWall(layer, inside && layer.storey === storey && (layer.side & facing) !== 0, k);
+      if (!inView) layer.mesh.material = layer.invisibleMaterial;
+      else layer.mesh.material = layer.opacity < 1 ? layer.fadingMaterial : layer.shownMaterial;
     }
   }
 
@@ -301,7 +299,7 @@ export class WorldView {
     _box.max.set(b.x1 + 1, b.top, b.z1 + 1);
     for (const height of BODY_HEIGHTS) {
       for (const side of [-halfWidth, 0, halfWidth]) {
-        _sample.set(x + side, y + height, z); // the camera looks along z, so the screen's horizontal is x
+        _sample.set(x + side * _right.x, y + height, z + side * _right.z); // across the body, as the camera sees it
         const length = _direction.subVectors(_sample, cameraPosition).length();
         _ray.set(cameraPosition, _direction.divideScalar(length));
         if (_ray.intersectBox(_box, _hit) !== null && cameraPosition.distanceTo(_hit) < length) return true;
@@ -310,12 +308,12 @@ export class WorldView {
     return false;
   }
 
-  // The south wall, between the camera and the player, fades so the player stays visible indoors.
+  // The walls between the camera and the player, those facing the camera, fade so the player stays visible indoors.
   // The other walls are seen edge-on or behind the player and never get in the way.
-  fadeSouthWall(layer, active, k) {
+  fadeWall(layer, active, k) {
     const target = active ? WALL_FADED_OPACITY : 1;
     if (layer.opacity === target) return;
     layer.opacity = Math.abs(target - layer.opacity) < 0.002 ? target : layer.opacity + (target - layer.opacity) * k;
-    layer.material.opacity = layer.opacity; // only the picture fades: the wall still shades the room
+    layer.fadeMaterial.opacity = layer.opacity; // only the picture fades: the wall still shades the room
   }
 }

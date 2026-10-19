@@ -41,7 +41,7 @@ export const TopColor = {
   [Top.Roof]: 0xa8472f,
 };
 
-export const WallSide = { North: 1, South: 2, West: 4, East: 8 }; // north = -z, as seen by the camera
+export const WallSide = { North: 1, South: 2, West: 4, East: 8 }; // north = -z, up the screen while the camera looks north
 
 // An opening (a door or a window) has no wall slab: its cell gets a frame instead, see World.frames. The frame is
 // drawn only, nothing is felt of it: posts on both sides of the opening, a header over it and, for a window, a sill under it.
@@ -60,6 +60,9 @@ export const WALL_SIDES = [
   { bit: WallSide.West, dx: -1, dz: 0, rect: [0, 0, WALL_THICKNESS, 1] },
   { bit: WallSide.East, dx: 1, dz: 0, rect: [1 - WALL_THICKNESS, 0, 1, 1] },
 ].map((side) => ({ ...side, rotY: Math.atan2(-side.dx, -side.dz) })); // rotation of the north slab onto this side
+
+// The sides, as a bit mask, that face a direction (a unit vector dx/dz): their outward normal points at least `minDot` that way.
+export const sidesFacing = (dx, dz, minDot) => WALL_SIDES.reduce((mask, side) => (side.dx * dx + side.dz * dz > minDot ? mask | side.bit : mask), 0);
 
 // Parts of a cell that block movement, as [x0, z0, x1, z1] in cell coordinates.
 // Stairs are not listed: they are walkable by their surface height, see stairHeight.

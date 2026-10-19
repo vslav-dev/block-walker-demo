@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Steering, wrapAngle } from '../src/steering.js';
+import { Steering } from '../src/steering.js';
+import { wrapAngle } from '../src/angles.js';
 
 const DEG = Math.PI / 180;
 const EAST = Math.PI / 2; // yaw of +x

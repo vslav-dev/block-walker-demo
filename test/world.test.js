@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Block, DOOR_H, STOREY_H, StairDir, Top, WALL_SIDES, WALL_THICKNESS, WallSide, frameHasHeader, frameHasSill, frameSide, isStairs, storeyAt } from '../src/blocks.js';
-import { World } from '../src/world.js';
+import { Block, DOOR_H, STOREY_H, StairDir, Top, WALL_SIDES, WALL_THICKNESS, WallSide, frameHasHeader, frameHasSill, frameSide, isStairs, sidesFacing, storeyAt } from '../src/blocks.js';
+import { BODY_H, World } from '../src/world.js';
 import { PlayerBody, RADIUS, RUN_SPEED, WALL_REACH } from '../src/player.js';
 import { generateWorld } from '../src/generator.js';
 import { doorHint } from '../src/door-hint.js';
@@ -215,6 +215,41 @@ test('a door needs a hint when the camera cannot see its wall: always in the nor
   assert.equal(doorHint(at(WallSide.West), 10.5 - 6, camera.z), 0, 'west, from the west');
   assert.equal(doorHint(at(WallSide.East), 10.5 - 6, camera.z), 1, 'east, from the west: the other side');
   assert.equal(doorHint(at(WallSide.East), 10.5 + 2, camera.z), 0.5, 'east, half way to a good view');
+});
+
+test('a ray from the middle of the body stops at what is in the way, and at nothing else', () => {
+  const y = 1 + BODY_H / 2; // the character stands on the ground plane
+  const cast = (world, maxDist = 100) => world.castRay(1.5, y, 4.5, 1, 0, maxDist);
+  const near = (actual, expected, message) => assert.ok(actual <= expected && actual > expected - 0.06, `${message}: ${actual} vs ${expected}`);
+
+  near(cast(flatWorld()), 6.5, 'the edge of the world');
+  near(cast(flatWorld(), 3), 3, 'the range');
+
+  const rock = flatWorld();
+  rock.set(5, 1, 4, Block.Rock);
+  near(cast(rock), 3.5, 'a cube, even one block high');
+
+  const wall = flatWorld();
+  wall.addWalls(3, 1, 4, WallSide.East);
+  near(cast(wall), 2.5, 'a wall of the cell the ray leaves');
+  const other = flatWorld();
+  other.addWalls(4, 1, 4, WallSide.West);
+  near(cast(other), 2.5, 'a wall of the cell the ray enters');
+
+  const window = flatWorld();
+  window.addWalls(4, 2, 4, WallSide.West);
+  near(cast(window), 6.5, 'the ray passes under a window, a slab above it is no obstacle');
+
+  const stairs = flatWorld();
+  stairs.set(5, 1, 4, Block.Stairs); // rises to the east: the ray meets the step that is higher than it
+  near(cast(stairs), 4.25, 'stairs');
+});
+
+test('the sides facing a direction', () => {
+  assert.equal(sidesFacing(0, 1, 0.15), WallSide.South);
+  assert.equal(sidesFacing(0, -1, 0.15), WallSide.North);
+  assert.equal(sidesFacing(Math.SQRT1_2, Math.SQRT1_2, 0.15), WallSide.South | WallSide.East);
+  assert.equal(sidesFacing(Math.sin(0.1), Math.cos(0.1), 0.15), WallSide.South, 'a wall almost edge-on is not facing');
 });
 
 test('the tested seeds contain staircases', () => {

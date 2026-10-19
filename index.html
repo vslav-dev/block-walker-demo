@@ -9,6 +9,14 @@
     canvas { display: block; }
     #hud, #status { position: fixed; padding: 8px 12px; color: #fff; background: rgba(20, 24, 30, 0.6); border-radius: 8px; pointer-events: none; }
     #hud { left: 12px; top: 12px; }
+    #settings { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.4); }
+    #settings[hidden] { display: none; }
+    #settings .panel { display: grid; gap: 14px; min-width: 320px; padding: 20px 24px; color: #fff; background: rgba(20, 24, 30, 0.92); border-radius: 12px; }
+    #settings h2 { margin: 0; font-size: 18px; }
+    #settings label { display: flex; align-items: center; gap: 10px; }
+    #settings input[type="range"] { flex: 1; }
+    #settings output { min-width: 3.5em; text-align: right; }
+    #settings button { justify-self: end; padding: 6px 16px; font: inherit; }
     #status { left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 18px; }
   </style>
   <script type="importmap">
@@ -21,8 +29,16 @@
   </script>
 </head>
 <body>
-  <div id="hud">WASD — move · Mouse — aim · Shift — run · R — new world (seed <span id="seed"></span>)</div>
+  <div id="hud">WASD — move · Mouse — look · Right button — aim · Shift — run · Esc — settings · R — new world (seed <span id="seed"></span>)</div>
   <div id="status">Loading…</div>
+  <div id="settings" hidden>
+    <div class="panel">
+      <h2>Settings</h2>
+      <label><input type="checkbox" id="aim-toggle"> Right button switches the aim on and off (otherwise hold it)</label>
+      <label>Mouse sensitivity <input type="range" id="sensitivity"> <output id="sensitivity-value"></output></label>
+      <button id="settings-close">Close (Esc)</button>
+    </div>
+  </div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
