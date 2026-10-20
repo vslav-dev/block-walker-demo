@@ -1,4 +1,4 @@
-import { Block, DOOR_H, STOREY_H, Top, WALL_SIDES, WallSide, frameValue } from './blocks.js';
+import { Block, Opening, STOREY_H, Top, WALL_SIDES, WallSide, frameValue } from './blocks.js';
 import { World } from './world.js';
 
 const WINDOW_PERCENT = 25; // chance of a window in a wall cell, corners excluded
@@ -53,15 +53,19 @@ function randomWallCell(house, int) {
 
 const sameCell = (a, b) => a.x === b.x && a.z === b.z;
 
-// An opening in a wall: the slab is taken out of the cell and a frame is put into it.
-function openWall(world, x, y, z, side, bars) {
-  world.removeWalls(x, y, z, side);
-  world.setFrame(x, y, z, frameValue(side, bars));
+// A doorway on the ground floor: the slabs of both rows of the wall are taken out of the cell, nothing is felt of the door.
+// The frame in it (lowest row) is drawn: posts, a header and a strip of wall over it, see DOOR_H.
+function openDoorway(world, x, z, side) {
+  for (let y = 1; y <= STOREY_H; y++) world.removeWalls(x, y, z, side);
+  world.setFrame(x, 1, z, frameValue(side, Opening.Door));
 }
 
-// A doorway is DOOR_H blocks high: posts on both sides and a header over it, nothing under it.
-function openDoorway(world, x, z, side) {
-  for (let y = 1; y <= DOOR_H; y++) openWall(world, x, y, z, side, { header: y === DOOR_H });
+// A window in a storey: the slab of the upper row is taken out of the cell, the lower one stays as the parapet. The frame
+// (lowest row) is drawn from WINDOW_BOTTOM to WINDOW_TOP, which does not follow the rows.
+function openWindow(world, x, storey, z, side) {
+  const base = storey * STOREY_H;
+  world.removeWalls(x, base + STOREY_H, z, side);
+  world.setFrame(x, base + 1, z, frameValue(side, Opening.Window));
 }
 
 // Stairs run along a wall: a flight of STOREY_H cells with a landing at each end, and a corner cell beyond each landing.
@@ -131,9 +135,8 @@ function buildHouse(world, id, house, int) {
   openDoorway(world, door.x, door.z, door.side);
   world.doors.push({ building: id, x: door.x, z: door.z, side: door.side });
 
-  // Windows = one missing wall slab at eye level, the upper block of the wall (the lower one stays as a parapet), in about
-  // WINDOW_PERCENT of the wall cells of every storey and in at least WINDOWS_MIN of them. The ground floor has none
-  // behind the stairs or in the door.
+  // Windows = a missing wall slab in the upper row (the lower one stays as a parapet), in about WINDOW_PERCENT of the wall
+  // cells of every storey and in at least WINDOWS_MIN of them. The ground floor has none behind the stairs or in the door.
   for (let s = 0; s < storeys; s++) {
     const candidates = [];
     for (let index = 0; index < WALL_SIDES.length; index++) {
@@ -144,7 +147,7 @@ function buildHouse(world, id, house, int) {
     }
     const windows = new Set(candidates.filter(() => int(1, 100) <= WINDOW_PERCENT));
     while (windows.size < WINDOWS_MIN) windows.add(candidates[int(0, candidates.length - 1)]);
-    for (const cell of windows) openWall(world, cell.x, (s + 1) * STOREY_H, cell.z, cell.side, { header: true, sill: true });
+    for (const cell of windows) openWindow(world, cell.x, s, cell.z, cell.side);
   }
 }
 

@@ -59,6 +59,24 @@ test('the report lists every number by group and shows the default of a changed 
   assert.equal(tunables.report(), ['# One', 'a = 5', 'b = 0.9   (default 0.5)', '', '# Two', 'c = 0'].join('\n'));
 });
 
+test('a switch takes only true or false, is kept when changed and reported like a number', () => {
+  const specs = [...SPECS, { key: 'line', group: 'Two', label: 'Line', boolean: true, value: true }];
+  const storage = memory();
+  const tunables = new Tunables(specs, storage);
+  assert.equal(tunables.values.line, true);
+  tunables.set('line', 1);
+  tunables.set('line', 'no');
+  assert.equal(tunables.values.line, true, 'not a boolean: ignored');
+  tunables.set('line', false);
+  assert.equal(tunables.isChanged('line'), true);
+  assert.equal(new Tunables(specs, storage).values.line, false, 'kept');
+  assert.ok(tunables.report().endsWith('line = false   (default true)'));
+  storage.items['block-walker-tunables'] = JSON.stringify({ line: 0 });
+  assert.equal(new Tunables(specs, storage).values.line, true, 'a stored non-boolean is ignored');
+  tunables.reset('line');
+  assert.equal(tunables.values.line, true);
+});
+
 test('a number that the game moves is neither kept nor reported as retuned', () => {
   const specs = [...SPECS, { key: 'hour', group: 'Two', label: 'Hour', min: 0, max: 24, step: 1, value: 10, live: true }];
   const storage = memory();

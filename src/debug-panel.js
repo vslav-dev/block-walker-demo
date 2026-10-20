@@ -21,7 +21,7 @@ function el(tag, props = {}, ...children) {
 // The debug panel at the side of the screen, F3 goes through off, the whole panel and only the frame rate in a tiny box
 // (the mode is kept between reloads). The game keeps running behind it.
 // - State: readouts that code registers with watch(), redrawn a few times a second.
-// - Tunables: a slider and a number for each, with a reset. They take effect at once and are kept between reloads.
+// - Tunables: a slider and a number for each (a checkbox for a switch), with a reset. They take effect at once and are kept between reloads.
 // - Sections: an accordion, one section per group of tunables (and the readouts of that group), only one open at a time.
 // - Copy: all numbers and the readouts as text, to pass on.
 // The markup shell is in index.html; everything in it is built here, so a new tunable or readout needs no markup.
@@ -29,7 +29,7 @@ export class DebugPanel {
   constructor(tunables) {
     this.tunables = tunables;
     this.readouts = [];
-    this.controls = new Map(); // tunable key -> { slider, number, reset }
+    this.controls = new Map(); // tunable key -> { show(value), reset, isHeld() }
     this.sections = new Map(); // group -> { state, body }
     this.sinceRefresh = 0;
     this.root = document.querySelector('#debug');
@@ -118,31 +118,46 @@ export class DebugPanel {
     for (const spec of this.tunables.specs) this.section(spec.group).body.append(this.createControl(spec));
   }
 
+  // A switch is a checkbox; a number is a slider and a field. Both come with a reset.
   createControl(spec) {
-    const range = { min: spec.min, max: spec.max, step: spec.step };
-    const slider = el('input', { type: 'range', ...range });
-    const number = el('input', { type: 'number', ...range });
     const reset = el('button', { textContent: '↺', title: `Default: ${spec.value}` });
-    this.controls.set(spec.key, { slider, number, reset, isHeld: () => document.activeElement === slider || document.activeElement === number });
-
     const change = (value) => {
       this.tunables.set(spec.key, value);
       this.sync(spec);
     };
-    slider.addEventListener('input', () => change(Number(slider.value)));
-    number.addEventListener('change', () => change(Number(number.value)));
+    let widgets;
+    let switchLabel = null; // a switch is one line: the checkbox and its text, which is its label, then the reset
+    if (spec.boolean) {
+      const box = el('input', { type: 'checkbox' });
+      box.addEventListener('change', () => change(box.checked));
+      switchLabel = el('label', { className: 'debug-switch' }, box, spec.label);
+      this.controls.set(spec.key, { reset, show: (value) => (box.checked = value), isHeld: () => false });
+    } else {
+      const range = { min: spec.min, max: spec.max, step: spec.step };
+      const slider = el('input', { type: 'range', ...range });
+      const number = el('input', { type: 'number', ...range });
+      slider.addEventListener('input', () => change(Number(slider.value)));
+      number.addEventListener('change', () => change(Number(number.value)));
+      widgets = [slider, number];
+      this.controls.set(spec.key, {
+        reset,
+        show: (value) => (slider.value = number.value = value),
+        isHeld: () => document.activeElement === slider || document.activeElement === number,
+      });
+    }
     reset.addEventListener('click', () => {
       this.tunables.reset(spec.key);
       this.sync(spec);
     });
     this.sync(spec);
-    return el('div', { className: 'debug-row' }, el('label', { textContent: spec.label }), el('div', {}, slider, number, reset));
+    if (switchLabel) return el('div', { className: 'debug-row debug-switch-row' }, switchLabel, reset);
+    return el('div', { className: 'debug-row' }, el('label', { textContent: spec.label }), el('div', {}, ...widgets, reset));
   }
 
   // Shows the current value of a tunable in its controls.
   sync(spec) {
-    const { slider, number, reset } = this.controls.get(spec.key);
-    slider.value = number.value = this.tunables.values[spec.key];
+    const { show, reset } = this.controls.get(spec.key);
+    show(this.tunables.values[spec.key]);
     reset.disabled = !this.tunables.isChanged(spec.key);
   }
 

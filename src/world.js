@@ -1,7 +1,10 @@
-import { Block, CUBE_RECTS, Top, WALL_RECTS, WALL_SIDES, WALL_THICKNESS, isCube, isStairs, overlapsAny, stairHeight } from './blocks.js';
+import {
+  Block, CUBE_RECTS, OPENING_CLEAR, STOREY_H, Top, WALL_RECTS, WALL_SIDES, WALL_THICKNESS, frameOpening, frameSide, isCube, isStairs, overlapsAny, stairHeight,
+} from './blocks.js';
 
 export const STEP_UP = 0.55; // max height a character climbs without jumping
 export const BODY_H = 1.7; // character height used for collisions
+export const EYE_H = 1.5; // the eyes above the feet: where a line of sight starts
 const RAY_STEP = 0.05; // how far a ray moves between two checks; thinner than a cell, so nothing is skipped
 
 // Voxel grid + collision queries. Blocks are stored in a flat array, x fastest, then z, then y.
@@ -15,7 +18,7 @@ export class World {
     this.walls = new Uint8Array(sizeX * sizeY * sizeZ);
     // The floor (or roof) slab on the top face of a cell, laid out like blocks: a Top kind.
     this.tops = new Uint8Array(sizeX * sizeY * sizeZ);
-    // The frame of a door or a window in a cell, laid out like blocks: a number, see frameValue. Only drawn.
+    // The frame of a door or a window, in the lowest row of its storey, laid out like blocks: a number, see frameValue. Only drawn.
     this.frames = new Uint8Array(sizeX * sizeY * sizeZ);
     // Building id per (x, z) column, 0 = open air. Used to hide roofs when the player is inside.
     this.buildings = new Uint8Array(sizeX * sizeZ);
@@ -110,8 +113,8 @@ export class World {
   }
 
   // How far a horizontal ray from (x, y, z) along the unit direction (dx, dz) goes before it meets a cube, a stairs surface,
-  // a wall or the edge of the world, at most maxDist. Windows and doorways are open. Floors are not met: they lie between
-  // the rows of cells, and a level ray stays within its row.
+  // a wall or the edge of the world, at most maxDist. Doorways and windows are open where they are clear, at the height
+  // of the ray (see OPENING_CLEAR). Floors are not met: they lie between the rows of cells, and a level ray stays within its row.
   castRay(x, y, z, dx, dz, maxDist) {
     const cy = Math.floor(y);
     let cx = Math.floor(x);
@@ -122,8 +125,8 @@ export class World {
       const nx = Math.floor(px);
       const nz = Math.floor(pz);
       const blocked = !this.inBounds(nx, cy, nz)
-        || (nx !== cx && this.wallBetween(cx, cz, nx, cz, cy))
-        || (nz !== cz && this.wallBetween(nx, cz, nx, nz, cy))
+        || (nx !== cx && this.wallStopsRay(cx, cz, nx, cz, y))
+        || (nz !== cz && this.wallStopsRay(nx, cz, nx, nz, y))
         || this.solidAt(nx, cy, nz, y, px - nx, pz - nz);
       if (blocked) return t - RAY_STEP;
       cx = nx;
@@ -138,11 +141,24 @@ export class World {
     return isCube(id) || (isStairs(id) && y - cy < stairHeight(id, fx, fz));
   }
 
-  // Is there a wall slab on the border between two neighboring cells at storey row y? It belongs to either of the two cells.
-  wallBetween(ax, az, bx, bz, y) {
+  // Does the wall on the border between two neighboring cells stop a level ray at height y? It belongs to either of the two cells.
+  wallStopsRay(ax, az, bx, bz, y) {
     const toward = WALL_SIDES.find((side) => side.dx === bx - ax && side.dz === bz - az);
     const back = WALL_SIDES.find((side) => side.dx === ax - bx && side.dz === az - bz);
-    return (this.getWalls(ax, y, az) & toward.bit) !== 0 || (this.getWalls(bx, y, bz) & back.bit) !== 0;
+    return this.sideStopsRay(ax, az, toward.bit, y) || this.sideStopsRay(bx, bz, back.bit, y);
+  }
+
+  // Does the wall on one side of a cell stop a ray at height y? Where the wall has an opening, only the opening's clear
+  // part lets it through, the frame and the wall around it stop it, whichever rows have slabs. Elsewhere the slab of the row decides.
+  sideStopsRay(cx, cz, side, y) {
+    const row = Math.floor(y);
+    const floor = 1 + Math.floor((row - 1) / STOREY_H) * STOREY_H; // the plane of the storey, the bottom of its lowest row
+    const frame = this.getFrame(cx, floor, cz);
+    if (frame !== 0 && frameSide(frame) === side) {
+      const [from, to] = OPENING_CLEAR[frameOpening(frame)];
+      return y - floor < from || y - floor >= to;
+    }
+    return (this.getWalls(cx, row, cz) & side) !== 0;
   }
 
   // Can a character with feet at y fit around (x, z)? Cubes, floors and wall slabs from STEP_UP above the feet up to the head

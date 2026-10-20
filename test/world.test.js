@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Block, DOOR_H, STAIR_STEPS, STOREY_H, StairDir, Top, WALL_SIDES, WALL_THICKNESS, WallSide, frameHasHeader, frameHasSill, frameSide, isStairs, sidesFacing, storeyAt } from '../src/blocks.js';
-import { BODY_H, World } from '../src/world.js';
+import { Block, DOOR_H, FRAME_WIDTH, Opening, STAIR_STEPS, STOREY_H, StairDir, Top, WALL_SIDES, WALL_THICKNESS, WINDOW_BOTTOM, WINDOW_TOP, WallSide, frameOpening, frameSide, frameValue, isStairs, sidesFacing, storeyAt } from '../src/blocks.js';
+import { BODY_H, EYE_H, World } from '../src/world.js';
 import { PlayerBody, RADIUS, RUN_SPEED, WALL_REACH } from '../src/player.js';
 import { generateWorld } from '../src/generator.js';
 import { beaconProximity, doorHint, footprintDistance } from '../src/door-hint.js';
@@ -159,7 +159,7 @@ test('every building has exactly one entrance, a gap in its wall as high as the 
     assert.equal(world.doors.length, buildings.size, `seed ${seed}: one door per building`);
     for (const door of world.doors) {
       assert.equal(world.buildingAt(door.x, door.z), door.building, 'the door is in its building');
-      for (let y = 1; y <= DOOR_H; y++) assert.equal(world.getWalls(door.x, y, door.z) & door.side, 0, `gap at y=${y}`);
+      for (let y = 1; y <= STOREY_H; y++) assert.equal(world.getWalls(door.x, y, door.z) & door.side, 0, `gap at y=${y}`);
     }
   }
 });
@@ -181,16 +181,14 @@ test('buildings have plenty of windows: a gap at eye level over a parapet that s
   }
 });
 
-test('doors and windows are framed: posts at the sides, a header over them, a sill only under windows', () => {
+test('doors and windows are framed, one frame in the lowest row of the storey, in the wall they are in', () => {
   for (const seed of SEEDS) {
     const { world } = generateWorld(seed);
     for (const door of world.doors) {
-      for (let y = 1; y <= DOOR_H; y++) {
-        const frame = world.getFrame(door.x, y, door.z);
-        assert.equal(frameSide(frame), door.side, 'the frame is in the wall of the door');
-        assert.equal(frameHasHeader(frame), y === DOOR_H, `header only over the doorway (y=${y})`);
-        assert.equal(frameHasSill(frame), false, 'no sill under a door');
-      }
+      const frame = world.getFrame(door.x, 1, door.z);
+      assert.equal(frameSide(frame), door.side, 'the frame is in the wall of the door');
+      assert.equal(frameOpening(frame), Opening.Door);
+      assert.equal(world.getFrame(door.x, 2, door.z), 0, 'nothing in the upper row: the frame is whole');
     }
 
     for (let z = 0; z < world.sizeZ; z++) {
@@ -198,12 +196,21 @@ test('doors and windows are framed: posts at the sides, a header over them, a si
         for (const side of WALL_SIDES) {
           const has = (y) => (world.getWalls(x, y, z) & side.bit) !== 0;
           if (!(has(1) && !has(2))) continue; // a window
-          const frame = world.getFrame(x, 2, z);
-          assert.ok(frameSide(frame) === side.bit && frameHasHeader(frame) && frameHasSill(frame), `window (${x}, ${z}) is framed all around`);
+          const frame = world.getFrame(x, 1, z);
+          assert.ok(frameSide(frame) === side.bit && frameOpening(frame) === Opening.Window, `window (${x}, ${z}) has its frame`);
         }
       }
     }
   }
+});
+
+test('the openings: the head fits under the door header, wall is left over the door and the window, the window is taller than a block', () => {
+  assert.ok(DOOR_H > BODY_H, 'the character walks through the doorway');
+  assert.ok(STOREY_H - (DOOR_H + FRAME_WIDTH) >= FRAME_WIDTH - 1e-9, 'a strip of wall over the header is as thick as the header');
+  assert.ok(WINDOW_TOP - WINDOW_BOTTOM > 1, 'the window is a little taller than a block');
+  assert.ok(STOREY_H - WINDOW_TOP >= FRAME_WIDTH - 1e-9, 'wall over the window frame');
+  assert.ok(WINDOW_BOTTOM > 0, 'wall under the window frame');
+  assert.equal(WINDOW_TOP, DOOR_H + FRAME_WIDTH, 'the window is level with the top of the door');
 });
 
 test('a door needs a hint when the camera cannot see its wall: always in the north one, never in the south one', () => {
@@ -243,6 +250,59 @@ test('a ray from the middle of the body stops at what is in the way, and at noth
   const stairs = flatWorld();
   stairs.set(5, 1, 4, Block.Stairs); // rises to the east: the ray meets the step that is higher than it
   near(cast(stairs), 3.5 + (STAIR_STEPS - 1) / STAIR_STEPS, 'stairs'); // over the steps lower than the ray, at the last one
+});
+
+test('a ray goes through a doorway or a window only where it is clear: not through the frame, the wall over it or under it', () => {
+  const floor = 1; // the plane of the ground floor
+  const cast = (world, height) => world.castRay(1.5, floor + height, 4.5, 1, 0, 100);
+  const stopped = (length) => length < 2.6; // the wall is at 2.5 from the start
+  const wall = () => {
+    const world = flatWorld();
+    for (const y of [1, 2]) world.addWalls(4, y, 4, WallSide.West);
+    return world;
+  };
+
+  const window = wall();
+  window.removeWalls(4, 2, 4, WallSide.West);
+  window.setFrame(4, 1, 4, frameValue(WallSide.West, Opening.Window));
+  assert.ok(!stopped(cast(window, EYE_H)), 'the eyes see through the window');
+  assert.ok(stopped(cast(window, WINDOW_BOTTOM + FRAME_WIDTH / 2)), 'not through the sill');
+  assert.ok(stopped(cast(window, 0.3)), 'not through the wall under it');
+  assert.ok(stopped(cast(window, WINDOW_TOP - FRAME_WIDTH / 2)), 'not through the header');
+  assert.ok(stopped(cast(window, STOREY_H - 0.05)), 'not through the wall over it, though the slab of that row is gone');
+
+  const door = wall();
+  for (const y of [1, 2]) door.removeWalls(4, y, 4, WallSide.West);
+  door.setFrame(4, 1, 4, frameValue(WallSide.West, Opening.Door));
+  assert.ok(!stopped(cast(door, EYE_H)) && !stopped(cast(door, 0.3)), 'through the doorway, high and low');
+  assert.ok(stopped(cast(door, DOOR_H + FRAME_WIDTH / 2)), 'not through the header');
+  assert.ok(stopped(cast(door, STOREY_H - 0.05)), 'not through the wall over it');
+
+  const upper = flatWorld(); // the same on the upper storey: its floor is at 3
+  for (const y of [3, 4]) upper.addWalls(4, y, 4, WallSide.West);
+  upper.removeWalls(4, 4, 4, WallSide.West);
+  upper.setFrame(4, 3, 4, frameValue(WallSide.West, Opening.Window));
+  assert.ok(upper.castRay(1.5, 3 + EYE_H, 4.5, 1, 0, 100) >= 2.6, 'a window of the upper storey is as clear');
+  assert.ok(upper.castRay(1.5, 3 + 0.3, 4.5, 1, 0, 100) < 2.6, 'and as closed under it');
+});
+
+test('the eyes see out of every window and door of every house, a knee-high ray does not pass the parapet', () => {
+  for (const seed of SEEDS) {
+    const { world } = generateWorld(seed);
+    for (let z = 0; z < world.sizeZ; z++) {
+      for (let x = 0; x < world.sizeX; x++) {
+        for (const side of WALL_SIDES) {
+          const has = (y) => (world.getWalls(x, y, z) & side.bit) !== 0;
+          const door = world.doors.some((d) => d.x === x && d.z === z && d.side === side.bit);
+          const window = has(1) && !has(2);
+          if (!door && !window) continue;
+          const out = (height) => world.castRay(x + 0.5, 1 + height, z + 0.5, side.dx, side.dz, 1.4); // a bit past the wall: a rock may stand beyond
+          assert.ok(out(EYE_H) >= 1.4 - 0.06, `seed ${seed}: the eyes see out of (${x}, ${z}), got ${out(EYE_H)}`);
+          if (window) assert.ok(out(0.3) < 1, `seed ${seed}: under the window (${x}, ${z}) the wall stops the ray`);
+        }
+      }
+    }
+  }
 });
 
 test('the sides facing a direction', () => {

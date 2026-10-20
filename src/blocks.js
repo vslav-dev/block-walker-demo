@@ -43,15 +43,16 @@ export const TopColor = {
 
 export const WallSide = { North: 1, South: 2, West: 4, East: 8 }; // north = -z, up the screen while the camera looks north
 
-// An opening (a door or a window) has no wall slab: its cell gets a frame instead, see World.frames. The frame is
-// drawn only, nothing is felt of it: posts on both sides of the opening, a header over it and, for a window, a sill under it.
-// A frame is a number: the WallSide of its wall and which bars it has beyond the posts.
+// A wall of a storey is drawn as one tall slab, STOREY_H blocks high. An opening (a door or a window) in it is a frame,
+// see World.frames, set in the lowest row of the storey: the slab is replaced by the wall around the opening and the frame in it.
+// The frame is drawn only, nothing is felt of it; what the body feels are the slabs in the rows of the cell (a doorway has
+// none, a window keeps the lower row as a parapet). A frame is a number: the WallSide of its wall and the Opening.
+export const Opening = { Door: 1, Window: 2 };
 export const FRAME_WIDTH = 0.12;
 export const FRAME_COLOR = 0x8a6a4a;
-export const frameValue = (side, { header = false, sill = false } = {}) => (side << 2) | (header ? 1 : 0) | (sill ? 2 : 0);
+export const frameValue = (side, opening) => (side << 2) | opening;
 export const frameSide = (frame) => frame >> 2;
-export const frameHasHeader = (frame) => (frame & 1) !== 0;
-export const frameHasSill = (frame) => (frame & 2) !== 0;
+export const frameOpening = (frame) => frame & 3;
 
 // In WallSide order. dx/dz point from the cell center to the side, rect = the slab inside the cell as [x0, z0, x1, z1].
 export const WALL_SIDES = [
@@ -76,7 +77,20 @@ export const overlapsAny = (rects, x0, z0, x1, z1) => rects.some(([a, b, c, d]) 
 // The stairs between two storeys are this many blocks long, one block per block of height.
 export const STOREY_H = 2;
 
-export const DOOR_H = STOREY_H; // a doorway is as high as the wall: its header is the bar under the ceiling, there is no wall above it
+// Openings, heights from the floor of the storey. A doorway is clear up to DOOR_H, a header FRAME_WIDTH thick sits on it,
+// and over the header there is a strip of wall of the same thickness: not a hole up to the ceiling. The strip is drawn only,
+// the head (1.7) is under it. A window's frame stands between WINDOW_BOTTOM and WINDOW_TOP: higher than a block, its top level
+// with the top of the door header, with wall left over it and under it.
+export const DOOR_H = STOREY_H - 2 * FRAME_WIDTH;
+export const WINDOW_BOTTOM = 0.7;
+export const WINDOW_TOP = DOOR_H + FRAME_WIDTH;
+
+// Where an opening is clear, as [from, to] heights from the floor of the storey: a doorway up to its header, a window between
+// its sill and its header. A line of sight passes through it; around it and over it, in the frame and the wall, it does not.
+export const OPENING_CLEAR = {
+  [Opening.Door]: [0, DOOR_H],
+  [Opening.Window]: [WINDOW_BOTTOM + FRAME_WIDTH, WINDOW_TOP - FRAME_WIDTH],
+};
 
 // A character that climbs to within this many blocks of the next floor already sees what is on it,
 // so the view switches to that storey then, not when the feet reach the floor.

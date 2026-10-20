@@ -4,7 +4,7 @@ import { WorldView } from './world-view.js';
 import { PlayerBody, WALK_SPEED, RUN_SPEED } from './player.js';
 import { loadRobot } from './robot.js';
 import { Input } from './input.js';
-import { Aim } from './aim.js';
+import { AIM_TUNABLES, Aim } from './aim.js';
 import { AimLine } from './aim-line.js';
 import { CameraRig } from './camera-rig.js';
 import { screenToWorld } from './angles.js';
@@ -45,8 +45,8 @@ const input = new Input(renderer.domElement, settings);
 const settingsScreen = new SettingsScreen(settings, { onOpen: () => input.reset(), onResume: () => input.resume() });
 const aim = new Aim(settings);
 const aimLine = new AimLine(world);
-const tunables = new Tunables([...DAY_TUNABLES, ...ZOOM_TUNABLES]);
-const day = tunables.values; // the time of day and how the light looks (the game moves the hour itself) and the camera
+const tunables = new Tunables([...DAY_TUNABLES, ...ZOOM_TUNABLES, ...AIM_TUNABLES]);
+const day = tunables.values; // all the tuned values: the time of day and how the light looks (the game moves the hour itself), the camera, the aim
 const rig = new CameraRig(camera, body.x, body.y, body.z, tunables.values);
 scene.add(aimLine.root);
 
@@ -84,8 +84,8 @@ debug.watch('Zoom (0 close … 1 far)', () => rig.zoom.value.toFixed(3), 'Camera
 debug.watch('Camera distance', () => rig.zoom.distance.toFixed(2), 'Camera');
 debug.watch('Camera pitch', () => degrees(rig.zoom.pitch), 'Camera');
 debug.watch('Camera heading', () => degrees(rig.heading), 'Camera');
-debug.watch('Aim mode', () => (aim.aiming ? 'on' : 'off'), 'Camera');
-debug.watch('Aim yaw', () => degrees(aim.yaw), 'Camera');
+debug.watch('Aim mode', () => (aim.aiming ? 'on' : 'off'), 'Aim');
+debug.watch('Aim yaw', () => degrees(aim.yaw), 'Aim');
 debug.watch('Player x / y / z', () => [body.x, body.y, body.z].map((v) => v.toFixed(2)).join(' / '), 'Camera');
 
 renderer.setAnimationLoop((time) => {
@@ -118,7 +118,7 @@ renderer.setAnimationLoop((time) => {
 
   // The character looks at the cursor, or where the mouse has turned the view in the aim mode.
   aim.update(dt, input.aiming, input.takeLookX(), rig.cursorYaw(input.mouse, body.x, visualY, body.z));
-  aimLine.update(aim.aiming, body.x, visualY, body.z, aim.yaw);
+  aimLine.update(aim.aiming && day.aimLine, aim.aiming && day.aimLineOverEverything, body.x, visualY, body.z, aim.yaw);
 
   if (robot) {
     robot.setPosition(body.x, visualY, body.z);

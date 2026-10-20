@@ -1,5 +1,12 @@
 import { NORTH, turnToward, wrapAngle } from './angles.js';
 
+// The red line of sight shown in the aim mode, for the debug panel: in the world, where the walls and the rest hide it
+// as they hide anything behind them, and, for debugging, over everything.
+export const AIM_TUNABLES = [
+  { key: 'aimLine', group: 'Aim', label: 'Aim line, hidden behind objects', boolean: true, value: true },
+  { key: 'aimLineOverEverything', group: 'Aim', label: 'Aim line over everything (debug)', boolean: true, value: false },
+];
+
 const YAW_SPEED = 18; // how fast the character turns to where it is aimed
 const LOOK_PER_PIXEL = 0.0015; // radians per pixel of mouse movement while aiming, at the sensitivity 1, the usual one
 
