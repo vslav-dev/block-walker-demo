@@ -74,9 +74,9 @@ export const overlapsAny = (rects, x0, z0, x1, z1) => rects.some(([a, b, c, d]) 
 
 // Floor to floor: the walls of a storey are this many blocks high, the floor planes lie at 1, 1 + STOREY_H, ...
 // The stairs between two storeys are this many blocks long, one block per block of height.
-export const STOREY_H = 3;
+export const STOREY_H = 2;
 
-export const DOOR_H = 2; // blocks; the rest of the wall above a door is the lintel
+export const DOOR_H = STOREY_H; // a doorway is as high as the wall: its header is the bar under the ceiling, there is no wall above it
 
 // A character that climbs to within this many blocks of the next floor already sees what is on it,
 // so the view switches to that storey then, not when the feet reach the floor.
@@ -85,8 +85,9 @@ const STOREY_REVEAL = 1;
 // The storey a character with feet at height y is in, for the view: 0 on the ground floor.
 export const storeyAt = (y) => Math.floor((y - 1 + STOREY_REVEAL) / STOREY_H);
 
-// Stairs have this many visual/walkable steps per block.
-export const STAIR_STEPS = 4;
+// Stairs have this many visual/walkable steps per block. A storey is only 2 blocks high, so the first step must be low:
+// the head (1.7) on it still passes under the floor beside the stairs (its slab starts 0.1 below the plane).
+export const STAIR_STEPS = 6;
 
 // Height of the stairs surface inside a block, from 0 to 1. fx/fz = position inside the block.
 export function stairHeight(id, fx, fz) {

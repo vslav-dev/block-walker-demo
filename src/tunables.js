@@ -4,6 +4,8 @@ const STORAGE_KEY = 'block-walker-tunables';
 // { key, group, label, min, max, step, value } where `value` is the default; the code reads the live `values`.
 // Once a number is settled, its default is changed in the spec.
 // The changed values are kept in the browser, so a reload (a new world) keeps them.
+// A spec with `live: true` is a number that the game moves itself (the time of day): the panel can set it, but it is
+// never "changed" from its default, so it is neither kept nor reported as retuned.
 export class Tunables {
   constructor(specs, storage = globalThis.localStorage) {
     this.specs = specs;
@@ -31,7 +33,8 @@ export class Tunables {
   }
 
   isChanged(key) {
-    return this.values[key] !== this.byKey.get(key).value;
+    const spec = this.byKey.get(key);
+    return !spec.live && this.values[key] !== spec.value;
   }
 
   // All numbers as text to pass on: a changed one shows its default, too.

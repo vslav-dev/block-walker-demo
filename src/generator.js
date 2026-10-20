@@ -4,7 +4,7 @@ import { World } from './world.js';
 const WINDOW_PERCENT = 25; // chance of a window in a wall cell, corners excluded
 const WINDOWS_MIN = 4; // per storey, so that no house is a dark box
 const WORLD_SIZE = 44;
-const WORLD_HEIGHT = 8; // enough for two storeys: the roof slab is on the cell 2 * STOREY_H = 6
+const WORLD_HEIGHT = 6; // enough for two storeys: the roof slab is on the cell 2 * STOREY_H = 4
 const SPAWN_CLEARING = 4; // half-size of the building-free square around the spawn
 const RESERVED = 255; // temporary building id that keeps the spawn clearing free
 
@@ -68,15 +68,20 @@ function openDoorway(world, x, z, side) {
 const STAIRS_WALL_MIN = STOREY_H + 4;
 
 // Solid stairs in the cells of a random wall, rising along it in a random direction, docked to the wall.
-// The upper floor has a hole above them, and its last step is level with it. Returns the cells of the flight.
+// The upper floor has a hole above them, and its last step is level with it. The hole reaches over the landing at the
+// foot too: a step is as high as it is long, so a head 1.7 blocks high meets a floor 2 blocks up before the stairs
+// are under the hole. Returns the cells of the stairwell, the landing at the foot and the flight: the wall behind them stays whole.
 function buildStairs(world, house, int) {
   const index = int(0, 3);
   const first = int(2, wallLength(house, index) - STOREY_H - 2); // u of the lowest u of the flight
   const rising = int(0, 1) === 1; // towards higher u
   const direction = (index < 2 ? 0 : 1) + (rising ? 0 : 2); // in StairDir order: +x, +z, -x, -z
-  const cells = [];
+  const cellAt = (step) => wallCell(house, index, rising ? first + step : first + STOREY_H - 1 - step); // step -1 = the landing at the foot
+  const foot = cellAt(-1);
+  world.setTop(foot.x, STOREY_H, foot.z, Top.None);
+  const cells = [foot];
   for (let step = 0; step < STOREY_H; step++) {
-    const { x, z } = wallCell(house, index, rising ? first + step : first + STOREY_H - 1 - step);
+    const { x, z } = cellAt(step);
     for (let j = 1; j <= step; j++) world.set(x, j, z, Block.Planks);
     world.set(x, 1 + step, z, Block.Stairs + direction);
     world.setTop(x, STOREY_H, z, Top.None);
@@ -116,7 +121,7 @@ function buildHouse(world, id, house, int) {
   }
 
   const stairs = storeys === 2 ? buildStairs(world, house, int) : [];
-  const onStairs = (cell) => stairs.some((step) => sameCell(step, cell)); // the wall behind the stairs stays whole
+  const onStairs = (cell) => stairs.some((step) => sameCell(step, cell)); // the wall behind the stairwell stays whole
 
   // Door = missing wall slabs, on any wall but not where the stairs or the partition are.
   let door;
@@ -126,8 +131,9 @@ function buildHouse(world, id, house, int) {
   openDoorway(world, door.x, door.z, door.side);
   world.doors.push({ building: id, x: door.x, z: door.z, side: door.side });
 
-  // Windows = one missing wall slab at eye level, in about WINDOW_PERCENT of the wall cells of every storey and
-  // in at least WINDOWS_MIN of them. The ground floor has none behind the stairs or in the door.
+  // Windows = one missing wall slab at eye level, the upper block of the wall (the lower one stays as a parapet), in about
+  // WINDOW_PERCENT of the wall cells of every storey and in at least WINDOWS_MIN of them. The ground floor has none
+  // behind the stairs or in the door.
   for (let s = 0; s < storeys; s++) {
     const candidates = [];
     for (let index = 0; index < WALL_SIDES.length; index++) {
@@ -138,7 +144,7 @@ function buildHouse(world, id, house, int) {
     }
     const windows = new Set(candidates.filter(() => int(1, 100) <= WINDOW_PERCENT));
     while (windows.size < WINDOWS_MIN) windows.add(candidates[int(0, candidates.length - 1)]);
-    for (const cell of windows) openWall(world, cell.x, s * STOREY_H + 2, cell.z, cell.side, { header: true, sill: true });
+    for (const cell of windows) openWall(world, cell.x, (s + 1) * STOREY_H, cell.z, cell.side, { header: true, sill: true });
   }
 }
 

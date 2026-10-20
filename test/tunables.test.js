@@ -58,3 +58,17 @@ test('the report lists every number by group and shows the default of a changed 
   tunables.set('b', 0.9);
   assert.equal(tunables.report(), ['# One', 'a = 5', 'b = 0.9   (default 0.5)', '', '# Two', 'c = 0'].join('\n'));
 });
+
+test('a number that the game moves is neither kept nor reported as retuned', () => {
+  const specs = [...SPECS, { key: 'hour', group: 'Two', label: 'Hour', min: 0, max: 24, step: 1, value: 10, live: true }];
+  const storage = memory();
+  const tunables = new Tunables(specs, storage);
+  tunables.values.hour = 15; // the game moves it
+  tunables.set('a', 7);
+  assert.equal(tunables.isChanged('hour'), false);
+  assert.deepEqual(JSON.parse(storage.items['block-walker-tunables']), { a: 7 }, 'the hour is not stored');
+  assert.equal(new Tunables(specs, storage).values.hour, 10, 'a new world starts at the default hour');
+  tunables.set('hour', 30);
+  assert.equal(tunables.values.hour, 24, 'the panel can still set it, within the range');
+  assert.ok(tunables.report().endsWith('hour = 24'), 'and it is reported without a default');
+});

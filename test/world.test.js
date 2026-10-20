@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Block, DOOR_H, STOREY_H, StairDir, Top, WALL_SIDES, WALL_THICKNESS, WallSide, frameHasHeader, frameHasSill, frameSide, isStairs, sidesFacing, storeyAt } from '../src/blocks.js';
+import { Block, DOOR_H, STAIR_STEPS, STOREY_H, StairDir, Top, WALL_SIDES, WALL_THICKNESS, WallSide, frameHasHeader, frameHasSill, frameSide, isStairs, sidesFacing, storeyAt } from '../src/blocks.js';
 import { BODY_H, World } from '../src/world.js';
 import { PlayerBody, RADIUS, RUN_SPEED, WALL_REACH } from '../src/player.js';
 import { generateWorld } from '../src/generator.js';
@@ -21,7 +21,8 @@ function walk(body, vx, vz, seconds) {
   for (let t = 0; t < seconds; t += DT) body.update(DT, vx, vz);
 }
 
-// Every staircase: its first (lowest) step, the direction it rises to, the wall it is docked to and its cells.
+// Every staircase: its first (lowest) step, the direction it rises to, the wall it is docked to and its stairwell,
+// the cells of the landing at the foot and of the flight.
 function staircases(world) {
   const found = [];
   for (let z = 0; z < world.sizeZ; z++) {
@@ -30,7 +31,7 @@ function staircases(world) {
       if (!isStairs(id)) continue;
       const dir = StairDir[id - Block.Stairs];
       const wall = WALL_SIDES.find((side) => (world.getWalls(x, 1, z) & side.bit) !== 0);
-      const cells = Array.from({ length: STOREY_H }, (_, i) => ({ x: x + dir.x * i, z: z + dir.z * i }));
+      const cells = Array.from({ length: STOREY_H + 1 }, (_, i) => ({ x: x + dir.x * (i - 1), z: z + dir.z * (i - 1) }));
       found.push({ x, z, dir, wall, cells });
     }
   }
@@ -143,15 +144,15 @@ test('a floor is a plane to stand on, and a ceiling blocks the head only when it
   assert.ok(blocked.x < 4 - RADIUS + 1e-6, `a low ceiling stops the head, got x=${blocked.x}`);
 });
 
-test('the view switches to the next storey two blocks up the stairs, not at its floor', () => {
-  assert.equal(STOREY_H, 3, 'the numbers below assume 3 blocks per storey');
-  // Floors are at y = 1, 4, 7.
-  for (const [y, storey] of [[1, 0], [2.9, 0], [3, 1], [4, 1], [5.9, 1], [6, 2], [7, 2]]) {
+test('the view switches to the next storey one block up the stairs, not at its floor', () => {
+  assert.equal(STOREY_H, 2, 'the numbers below assume 2 blocks per storey');
+  // Floors are at y = 1, 3, 5.
+  for (const [y, storey] of [[1, 0], [1.9, 0], [2, 1], [3, 1], [3.9, 1], [4, 2], [5, 2]]) {
     assert.equal(storeyAt(y), storey, `storey at y=${y}`);
   }
 });
 
-test('every building has exactly one entrance, a door-sized gap in its wall', () => {
+test('every building has exactly one entrance, a gap in its wall as high as the wall', () => {
   for (const seed of SEEDS) {
     const { world } = generateWorld(seed);
     const buildings = new Set(world.buildings.filter((id) => id !== 0));
@@ -159,12 +160,11 @@ test('every building has exactly one entrance, a door-sized gap in its wall', ()
     for (const door of world.doors) {
       assert.equal(world.buildingAt(door.x, door.z), door.building, 'the door is in its building');
       for (let y = 1; y <= DOOR_H; y++) assert.equal(world.getWalls(door.x, y, door.z) & door.side, 0, `gap at y=${y}`);
-      assert.notEqual(world.getWalls(door.x, DOOR_H + 1, door.z) & door.side, 0, 'the lintel stays');
     }
   }
 });
 
-test('buildings have plenty of windows: gaps at eye level under and over wall that stays', () => {
+test('buildings have plenty of windows: a gap at eye level over a parapet that stays', () => {
   for (const seed of SEEDS) {
     const { world } = generateWorld(seed);
     const windows = new Map(); // building id -> number of windows on the ground floor
@@ -172,7 +172,7 @@ test('buildings have plenty of windows: gaps at eye level under and over wall th
       for (let x = 0; x < world.sizeX; x++) {
         for (const side of WALL_SIDES) {
           const has = (y) => (world.getWalls(x, y, z) & side.bit) !== 0;
-          if (has(1) && !has(2) && has(3)) windows.set(world.buildingAt(x, z), (windows.get(world.buildingAt(x, z)) ?? 0) + 1);
+          if (has(1) && !has(2)) windows.set(world.buildingAt(x, z), (windows.get(world.buildingAt(x, z)) ?? 0) + 1);
         }
       }
     }
@@ -197,7 +197,7 @@ test('doors and windows are framed: posts at the sides, a header over them, a si
       for (let x = 0; x < world.sizeX; x++) {
         for (const side of WALL_SIDES) {
           const has = (y) => (world.getWalls(x, y, z) & side.bit) !== 0;
-          if (!(has(1) && !has(2) && has(3))) continue; // a window
+          if (!(has(1) && !has(2))) continue; // a window
           const frame = world.getFrame(x, 2, z);
           assert.ok(frameSide(frame) === side.bit && frameHasHeader(frame) && frameHasSill(frame), `window (${x}, ${z}) is framed all around`);
         }
@@ -242,7 +242,7 @@ test('a ray from the middle of the body stops at what is in the way, and at noth
 
   const stairs = flatWorld();
   stairs.set(5, 1, 4, Block.Stairs); // rises to the east: the ray meets the step that is higher than it
-  near(cast(stairs), 4.25, 'stairs');
+  near(cast(stairs), 3.5 + (STAIR_STEPS - 1) / STAIR_STEPS, 'stairs'); // over the steps lower than the ray, at the last one
 });
 
 test('the sides facing a direction', () => {
@@ -318,11 +318,11 @@ for (const seed of SEEDS) {
         for (let y = 1; y <= STOREY_H; y++) {
           assert.ok((world.getWalls(cell.x, y, cell.z) & wall.bit) !== 0, `the wall behind the stairs (${x}, ${z}) is whole at y=${y}`);
         }
-        // The hole in the upper floor is exactly as wide as the stairs, the floor is next to it.
+        // The hole in the upper floor is exactly as wide as the stairs and reaches over the landing at their foot, the floor is next to it.
         assert.equal(world.getTop(cell.x, STOREY_H, cell.z), Top.None, 'hole above the stairs');
         assert.equal(world.getTop(cell.x - wall.dx, STOREY_H, cell.z - wall.dz), Top.Planks, 'floor next to the stairs');
       }
-      const last = cells[STOREY_H - 1];
+      const last = cells[STOREY_H];
       assert.equal(world.getTop(last.x + dir.x, STOREY_H, last.z + dir.z), Top.Planks, 'the upper floor goes on past the last step');
 
       // Straight up from anywhere across the stairs (they pull the body to their middle), and pressing
@@ -349,9 +349,9 @@ test('stairs come on every wall, rising either way, and the doors of two-storey 
     for (let z = 0; z < world.sizeZ; z++) {
       for (let x = 0; x < world.sizeX; x++) {
         if (!twoStorey.has(world.buildingAt(x, z))) continue;
-        // A door is a gap in the wall at the foot of the wall, under a lintel that stays.
+        // A door is a gap in the wall of the ground floor, under the wall of the upper one.
         for (const side of WALL_SIDES) {
-          if ((world.getWalls(x, STOREY_H, z) & side.bit) !== 0 && (world.getWalls(x, 1, z) & side.bit) === 0) doorSidesSeen.add(side.bit);
+          if ((world.getWalls(x, STOREY_H + 1, z) & side.bit) !== 0 && (world.getWalls(x, 1, z) & side.bit) === 0) doorSidesSeen.add(side.bit);
         }
       }
     }
