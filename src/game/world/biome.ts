@@ -10,6 +10,7 @@ export interface BiomeRules {
   sky: boolean; // the light of the sky and the cycle of the days
   carriesLight: boolean; // the character holds a candle
   bodyShadow: boolean; // the character's body throws a shadow; it does not where it holds the light, or it would hide a half of the room from its own candle
+  softShadows: boolean; // the edges of the shadows are blurred; where several lights shine at once a blurred shadow costs the most of a frame
   limitedSight: boolean; // only what the character's eyes see is shown, not what the camera over the roof sees: nothing is known of what is behind a wall
   // The walls between the camera and the character go: they fade to `opacity` (per second `speed`, the share of the way left that
   // is covered). Where the sight is limited they vanish, a faint wall would show the light of the room behind it, and they go
@@ -18,6 +19,6 @@ export interface BiomeRules {
 }
 
 export const BIOME_RULES: Record<Biome, BiomeRules> = {
-  [Biome.Surface]: { sky: true, carriesLight: false, bodyShadow: true, limitedSight: false, wallFade: { opacity: 0.2, speed: 10 } },
-  [Biome.Interior]: { sky: false, carriesLight: true, bodyShadow: false, limitedSight: true, wallFade: { opacity: 0, speed: 60 } },
+  [Biome.Surface]: { sky: true, carriesLight: false, bodyShadow: true, softShadows: true, limitedSight: false, wallFade: { opacity: 0.2, speed: 10 } },
+  [Biome.Interior]: { sky: false, carriesLight: true, bodyShadow: false, softShadows: false, limitedSight: true, wallFade: { opacity: 0, speed: 60 } },
 };

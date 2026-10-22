@@ -28,6 +28,8 @@ export function cullUnseen(material: THREE.Material): void {
 // A layer of walls whose cells that are not wanted are left out of the picture.
 export class UnseenCull {
   private readonly seen: THREE.InstancedBufferAttribute;
+  private area: SeenArea | null = null; // what it was told by the last time, and from where the camera was
+  private readonly camera = new THREE.Vector3(NaN, NaN, NaN);
 
   constructor(
     geometry: THREE.BufferGeometry,
@@ -39,6 +41,9 @@ export class UnseenCull {
 
   // A cell is drawn if the area has any point before the face of it that the camera sees.
   update(area: SeenArea, camera: THREE.Vector3): void {
+    if (area === this.area && camera.equals(this.camera)) return; // nothing has moved
+    this.area = area;
+    this.camera.copy(camera);
     let changed = false;
     this.cells.forEach(({ axis, middle, low, high }, i) => {
       const faceSeen = camera[axis] < middle ? low : high;

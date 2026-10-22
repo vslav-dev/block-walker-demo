@@ -4,10 +4,13 @@ import { CameraRig } from '@game/camera/camera-rig';
 import { PlayerBody, RUN_SPEED, WALK_SPEED } from '@game/character/player-body';
 import { Robot, loadRobot } from '@game/character/robot';
 import {
+  ANTIALIAS_BELOW_RATIO,
   CAMERA_FAR,
   CAMERA_FOV,
   CAMERA_NEAR,
   FPS_SMOOTHING,
+  FRAME_EARLY_MILLISECONDS,
+  FRAME_MILLISECONDS,
   MAX_FRAME_SECONDS,
   MAX_PIXEL_RATIO,
   STAIRS_SMOOTHING_SPEED,
@@ -20,8 +23,8 @@ import { Input } from '@game/input/input';
 import { Darkness, type Atmosphere } from '@game/lighting/atmosphere';
 import { Lighting } from '@game/lighting/lighting';
 import { createReadouts } from '@game/readouts';
-import { Sight } from '@game/sight/sight';
-import type { GameTuning } from '@game/tuning';
+import { ResolutionGovernor } from '@game/resolution-governor';
+import { Sight } from '@game/sight/sight';import type { GameTuning } from '@game/tuning';
 import { BIOME_RULES, type Biome } from '@game/world/biome';
 import { generateWorld, type SceneId } from '@game/world/generator';
 import { WorldView } from '@game/world-view/world-view';
@@ -48,6 +51,7 @@ export class Game {
   fps = 60;
 
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly resolution: ResolutionGovernor;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly worldView: WorldView;
@@ -59,6 +63,7 @@ export class Game {
   private robot: Robot | null = null; // stays null if the model is not loaded (yet)
   private visualY: number; // the height the character is drawn at
   private last = performance.now();
+  private nextFrameAt = 0; // the time before which the frames are left out, see FRAME_MILLISECONDS
   private paused = false;
   private disposed = false;
 
@@ -70,10 +75,14 @@ export class Game {
     const rules = BIOME_RULES[biome];
     this.biome = biome;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, stencil: rules.limitedSight });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
+    const pixelRatio = Math.min(devicePixelRatio, MAX_PIXEL_RATIO);
+    // The smoothing of the edges costs a third of a frame, and on a screen of such a density the pixels are too small to show the steps.
+    this.renderer = new THREE.WebGLRenderer({ antialias: devicePixelRatio < ANTIALIAS_BELOW_RATIO, stencil: rules.limitedSight });
+    this.renderer.setPixelRatio(pixelRatio);
+    this.resolution = new ResolutionGovernor(pixelRatio, pixelRatio);
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = rules.softShadows ? THREE.PCFShadowMap : THREE.BasicShadowMap;
     container.appendChild(this.renderer.domElement);
 
     this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, innerWidth / innerHeight, CAMERA_NEAR, CAMERA_FAR);
@@ -139,11 +148,16 @@ export class Game {
   }
 
   private frame(time: number): void {
-    const dt = Math.min((time - this.last) / 1000, MAX_FRAME_SECONDS);
+    if (time < this.nextFrameAt - FRAME_EARLY_MILLISECONDS) return; // a screen faster than the game needs
+    this.nextFrameAt = Math.max(this.nextFrameAt, time - FRAME_MILLISECONDS) + FRAME_MILLISECONDS;
+    const seconds = (time - this.last) / 1000;
+    const dt = Math.min(seconds, MAX_FRAME_SECONDS);
     this.fps += (1000 / Math.max(time - this.last, 1) - this.fps) * FPS_SMOOTHING;
     this.last = time;
     if (!this.paused) this.step(dt); // paused: the picture stays as it is
     this.renderer.render(this.scene, this.camera);
+    const ratio = this.resolution.update(seconds);
+    if (ratio !== null) this.renderer.setPixelRatio(ratio);
   }
 
   // One step of the game. The order matters: the camera follows the character where it has just moved, the sky follows

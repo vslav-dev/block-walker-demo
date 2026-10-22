@@ -62,7 +62,7 @@ describe('WorldView', () => {
     const casting = (color: number): boolean[] => {
       const found: boolean[] = [];
       scene.traverse((o) => {
-        if (o instanceof THREE.InstancedMesh && (o.material as THREE.MeshStandardMaterial).color.getHex() === color) found.push(o.castShadow);
+        if (o instanceof THREE.InstancedMesh && (o.material as THREE.MeshLambertMaterial).color.getHex() === color) found.push(o.castShadow);
       });
       return found;
     };

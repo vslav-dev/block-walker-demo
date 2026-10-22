@@ -57,6 +57,19 @@ describe('UnseenCull', () => {
     expect(drawn([wall(0, true), wall(10, false), wall(20, false)])).toEqual([1, 0, 0]);
   });
 
+  it('is not worked out again while the area and the camera are the same', () => {
+    const cells = [wall(0, true)];
+    const cull = new UnseenCull(new THREE.BufferGeometry(), cells);
+    const array = (cull as unknown as { seen: THREE.InstancedBufferAttribute }).seen.array;
+    cull.update(area, camera);
+    expect(array[0]).toBe(1);
+    cells[0] = wall(10, true); // what it was told is changed: if it looked again it would find the cell not wanted
+    cull.update(area, camera);
+    expect(array[0], 'did not look').toBe(1);
+    cull.update(area, new THREE.Vector3(5, 20, 36));
+    expect(array[0], 'the camera has moved: it looks').toBe(0);
+  });
+
   it('the camera sees the face on its side whatever the slab, and it is the one the player must see', () => {
     // The north wall of the room, with the slab to the north of its border, outside the room: from the south it is seen from inside.
     expect(drawn([wall(0, false)])).toEqual([1]);

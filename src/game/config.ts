@@ -1,4 +1,9 @@
 export const MAX_PIXEL_RATIO = 2;
+export const ANTIALIAS_BELOW_RATIO = 2; // a screen with this many device pixels to a CSS pixel or more is drawn without smoothing the edges
+// Frames come no faster than 60 a second: on a screen of 120 or 144 Hz some of them are left out. A frame may come a little
+// early (the screens do not keep time to the millisecond), so that the ones on a screen of 60 Hz are never left out.
+export const FRAME_MILLISECONDS = 1000 / 60;
+export const FRAME_EARLY_MILLISECONDS = 2;
 
 // The camera of the view.
 export const CAMERA_FOV = 30;

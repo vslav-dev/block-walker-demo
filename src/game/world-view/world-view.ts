@@ -32,7 +32,7 @@ const _axisY = new THREE.Vector3(0, 1, 0);
 // A wall fades on its own, so it has its own material, drawn in the two passes of its geometry while it is not opaque.
 // It is opaque most of the time: a fading wall would hide what is behind it from the walls drawn after it.
 interface Fade {
-  material: THREE.MeshStandardMaterial;
+  material: THREE.MeshLambertMaterial;
   passes: THREE.Material[];
 }
 
@@ -134,8 +134,10 @@ export class WorldView {
   // The material of the floors, the roofs and the blocks. The floors and the roofs are slabs as thin as the walls: they cast
   // their shadows with both faces too. Cast with the back face only, the top of a roof is as deep as the wall that ends at it,
   // and the wall is shaded in teeth along its top edge, one at every joint of the slabs.
-  private solidMaterial(type: LayerType): THREE.MeshStandardMaterial {
-    return new THREE.MeshStandardMaterial({ color: LAYER_COLORS[type], roughness: 0.95, shadowSide: isTopType(type) ? THREE.DoubleSide : null });
+  // It is a Lambert material, not a standard one: the world is matt (the standard one at the roughness it had was too), and the
+  // standard one works out a shine for every light at every pixel, which is a third of a frame where several lights shine.
+  private solidMaterial(type: LayerType): THREE.MeshLambertMaterial {
+    return new THREE.MeshLambertMaterial({ color: LAYER_COLORS[type], shadowSide: isTopType(type) ? THREE.DoubleSide : null });
   }
 
   private createLayers(groups: LayerGroup[], scene: THREE.Scene): void {
@@ -159,10 +161,9 @@ export class WorldView {
     // the slabs where they meet, inside the wall, which then show through as thin lines at the joints.
     // A wall casts a shadow with both its faces: the near one is the occluder, so that the far face, where the wall is
     // lit through a seam or by a bias that is too big, is as deep in the shadow as the whole thickness of the slab.
-    const wallMaterial = (type: LayerType, extra?: THREE.MeshStandardMaterialParameters) => {
-      const material = new THREE.MeshStandardMaterial({
+    const wallMaterial = (type: LayerType, extra?: THREE.MeshLambertMaterialParameters) => {
+      const material = new THREE.MeshLambertMaterial({
         color: LAYER_COLORS[type],
-        roughness: 0.95,
         polygonOffset: true,
         polygonOffsetFactor: 0,
         polygonOffsetUnits: -1,

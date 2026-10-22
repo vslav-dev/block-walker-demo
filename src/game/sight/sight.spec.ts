@@ -49,6 +49,17 @@ describe('Sight', () => {
     expect([position.getX(0), position.getZ(0)]).toEqual([1.5, 1.5]);
   });
 
+  it('what he sees is worked out again only when he has moved', () => {
+    const { world, spawn } = generateDepot(1);
+    const sight = new Sight(world, new THREE.Scene());
+    sight.update(spawn.x, 1, spawn.z);
+    const seen = sight.seen;
+    sight.update(spawn.x, 1, spawn.z);
+    expect(sight.seen, 'he stands: the same').toBe(seen);
+    sight.update(spawn.x + 0.1, 1, spawn.z);
+    expect(sight.seen, 'he has moved: new').not.toBe(seen);
+  });
+
   it('counts the prism in the stencil buffer: +1 for a front face, -1 for a back one, and blacks out where the count is not 1', () => {
     const scene = new THREE.Scene();
     new Sight(generateDepot(1).world, scene);

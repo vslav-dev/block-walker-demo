@@ -14,7 +14,9 @@ import { LIGHT_GROUP, type LightTuning } from './light-tuning';
 // ones that matter most for the player (see light-choice.ts) shine, the others are only seen as flames. When the choice
 // changes, a light fades out in its place and the new one fades in in another, so nothing jumps.
 // The shadow of a light that stands still is drawn once, when it takes its place: nothing in the world moves, and the
-// character's body throws no shadow where there are lights (see BiomeRules). The light in the hand moves, so its shadow is drawn every frame.
+// character's body throws no shadow where there are lights (see BiomeRules). The light in the hand has no shadow: it would be
+// drawn anew every frame, in six directions, and for what? It never goes past a wall (see below), and what the character
+// does not see is blacked out (see Sight), so no light of it is seen where a shadow would have kept it out.
 const SHINING = 4; // the lights of the world that shine at a time
 const SPARE = 2; // places beyond that, for the lights that fade out while others fade in
 const FADE_SECONDS = 0.5;
@@ -24,9 +26,8 @@ const SHADOW_BIAS = 0;
 const SHADOW_NORMAL_BIAS = 0.03;
 const DECAY = 2; // the physical fall-off of a point light
 // The candle in the hand is before the character at the height of the chest, so that it lights him from the front. It never
-// gets past a wall that he stands near, a doorway too: the room beyond would be lit from the candle, and the room he is in would
-// have the shadow of a wall that is no longer on the screen (see BiomeRules.wallFade) on its walls. It goes out to its place at a
-// quick pace, not in a jump, as he passes the doorway; it is taken in at once.
+// gets past a wall that he stands near, a doorway too: with no shadow, the room he is in would be lit from the other side of the
+// wall. It goes out to its place at a quick pace, not in a jump, as he passes the doorway; it is taken in at once.
 const HAND_HEIGHT = 1.45;
 const HAND_FORWARD = 0.7;
 const HAND_WALL_GAP = 0.15;
@@ -46,7 +47,7 @@ function createPointLight(): THREE.PointLight {
   light.shadow.camera.near = SHADOW_NEAR;
   light.shadow.bias = SHADOW_BIAS;
   light.shadow.normalBias = SHADOW_NORMAL_BIAS;
-  light.shadow.autoUpdate = false; // drawn when it is asked for (see Lighting.take) or, for a light that moves, switched on by its owner
+  light.shadow.autoUpdate = false; // drawn when it is asked for (see Lighting.take)
   light.shadow.needsUpdate = true; // once at the start, so that the map exists: a shader with a light that has none does not draw
   return light;
 }
@@ -78,7 +79,7 @@ export class Lighting {
     this.hand = carriesLight ? { light: createPointLight(), flame: fixtures.createFlame(HAND) } : null;
     if (this.hand) {
       this.hand.light.color.setHex(LIGHT_LOOKS[HAND].color);
-      this.hand.light.shadow.autoUpdate = true; // it moves with the character
+      this.hand.light.castShadow = false; // see the note above
       scene.add(this.hand.light, this.hand.flame);
     }
 

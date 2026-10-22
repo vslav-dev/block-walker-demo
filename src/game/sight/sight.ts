@@ -23,6 +23,9 @@ export class Sight {
   private readonly occludersByRow = new Map<number, Occluders>(); // what stops the sight, by the row of cells at the height of the eyes
   private readonly range: number;
   private positions = new Float32Array(0);
+  private fromX = NaN; // where it was seen from the last time
+  private fromZ = NaN;
+  private fromRow = NaN;
 
   constructor(
     private readonly world: World,
@@ -60,6 +63,8 @@ export class Sight {
   // Called every frame with the character's feet at (x, y, z): what he sees is what the eyes see from there.
   update(x: number, y: number, z: number): void {
     const row = Math.floor(y + EYE_H);
+    if (this.seen && x === this.fromX && z === this.fromZ && row === this.fromRow) return; // he stands still: what he sees is the same
+    [this.fromX, this.fromZ, this.fromRow] = [x, z, row];
     let occluders = this.occludersByRow.get(row);
     if (!occluders) this.occludersByRow.set(row, (occluders = new Occluders(sightSegments(this.world, row))));
 

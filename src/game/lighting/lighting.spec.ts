@@ -52,6 +52,16 @@ describe('Lighting', () => {
     expect(hand.distance).toBe(tuning()[LIGHT_LOOKS[HAND].reach]);
   });
 
+  it('the light in the hand has no shadow, which would be drawn every frame; those of the world have one, drawn once', () => {
+    const scene = new THREE.Scene();
+    new Lighting(hall(3), scene, tuning(), true);
+    const lights = pointLights(scene);
+    const [world, hand] = [lights.filter((l) => l.castShadow), lights.filter((l) => !l.castShadow)];
+    expect(hand).toHaveLength(1);
+    expect(world.length).toBeGreaterThan(0);
+    expect(world.every((l) => !l.shadow.autoUpdate)).toBe(true);
+  });
+
   it('the number of lights in the scene is fixed, however many the world has and wherever the character goes', () => {
     const scene = new THREE.Scene();
     const lighting = new Lighting(hall(20), scene, tuning(), true);

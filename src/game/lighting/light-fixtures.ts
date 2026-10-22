@@ -16,8 +16,8 @@ const CORD_LENGTH = 0.15;
 export class LightFixtures {
   private readonly flameGeometry = new THREE.SphereGeometry(FLAME_RADIUS);
   private readonly bulbGeometry = new THREE.SphereGeometry(BULB_RADIUS);
-  private readonly standMaterial = new THREE.MeshStandardMaterial({ color: STAND_COLOR, roughness: 1 });
-  private readonly waxMaterial = new THREE.MeshStandardMaterial({ color: WAX_COLOR, roughness: 1 });
+  private readonly standMaterial = new THREE.MeshLambertMaterial({ color: STAND_COLOR });
+  private readonly waxMaterial = new THREE.MeshLambertMaterial({ color: WAX_COLOR });
 
   // A flame of a source of light, to put where the light is.
   createFlame(kind: SourceKind): THREE.Mesh {
