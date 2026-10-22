@@ -2,9 +2,8 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { SettingsService } from '@app/services/settings.service';
 import { TunablesService } from '@app/services/tunables.service';
 import { Game } from '@game/game';
+import { randomSeed, type SceneId } from '@game/world/generator';
 
-const SEED_PARAM = 'seed';
-const SEED_RANGE = 1e6;
 const LOADING_STATUS = 'Loading…';
 const FAILURE_STATUS_MILLISECONDS = 4000;
 
@@ -16,7 +15,6 @@ const FAILURE_STATUS_MILLISECONDS = 4000;
 export class GameService {
   private readonly settings = inject(SettingsService);
   private readonly tunables = inject(TunablesService);
-  private container: HTMLElement | null = null;
 
   readonly game$$ = signal<Game | null>(null);
   readonly readouts$$ = computed(() => this.game$$()?.readouts ?? []);
@@ -24,18 +22,16 @@ export class GameService {
   // The game stands still while the player is in the settings.
   readonly paused$$ = signal(false);
 
-  // The world of the seed in the address, or of a new one.
-  initializeGame(container: HTMLElement): void {
-    this.container = container;
-    this.startGame(container, Number(new URLSearchParams(location.search).get(SEED_PARAM)) || this.randomSeed());
-  }
-
-  // A new world, and its seed in the address.
-  newWorld(): void {
-    if (!this.container) return;
-    const seed = this.randomSeed();
-    history.replaceState(null, '', `?${SEED_PARAM}=${seed}`);
-    this.startGame(this.container, seed);
+  // Plays the scene in the container, replacing the game that is played now. The seed is the one of the address
+  // (text, as it comes from there); without a good one the world is a new one.
+  initializeGame(container: HTMLElement, scene: SceneId, seedText?: string): void {
+    this.destroyGame();
+    const seed = Number(seedText) || randomSeed();
+    const game = new Game(container, { scene, seed }, { settings: this.settings, tuning: this.tunables.values });
+    if (this.paused$$()) game.pause();
+    game.start();
+    this.game$$.set(game);
+    void this.loadCharacter(game);
   }
 
   destroyGame(): void {
@@ -54,15 +50,6 @@ export class GameService {
     this.game$$()?.resume();
   }
 
-  private startGame(container: HTMLElement, seed: number): void {
-    this.destroyGame();
-    const game = new Game(container, seed, { settings: this.settings, tuning: this.tunables.values });
-    if (this.paused$$()) game.pause();
-    game.start();
-    this.game$$.set(game);
-    void this.loadCharacter(game);
-  }
-
   // The game is played without the character until its model is loaded, or for good if it cannot be.
   private async loadCharacter(game: Game): Promise<void> {
     this.status$$.set(LOADING_STATUS);
@@ -77,9 +64,5 @@ export class GameService {
         if (this.status$$() === status) this.status$$.set(null);
       }, FAILURE_STATUS_MILLISECONDS);
     }
-  }
-
-  private randomSeed(): number {
-    return Math.floor(Math.random() * SEED_RANGE);
   }
 }

@@ -29,6 +29,12 @@ export interface Door {
   side: number;
 }
 
+// A world as a generator makes it, and where the player stands in it at the start.
+export interface GeneratedWorld {
+  world: World;
+  spawn: { x: number; z: number };
+}
+
 // Voxel grid + collision queries. Blocks are stored in a flat array, x fastest, then z, then y.
 export class World {
   readonly blocks: Uint8Array;

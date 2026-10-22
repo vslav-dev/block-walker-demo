@@ -1,11 +1,10 @@
-import { DT, SEEDS, atFootOfStairs, flatWorld, staircases, walk, wallWorld } from '@game/testing/worlds';
+import { DT, SEEDS, atFootOfStairs, flatWorld, floodFill, staircases, walk, wallWorld } from '@game/testing/worlds';
 import { Block, STOREY_H, Top, WALL_THICKNESS } from '@game/world/blocks';
-import { generateWorld } from '@game/world/generator';
+import { generateTown } from '@game/world/town/town-generator';
 import { PlayerBody, RADIUS, RUN_SPEED, WALL_REACH } from './player-body';
 
 const SPEED = 3; // blocks per second
 const LONG_TEST_MILLISECONDS = 60_000; // the wandering simulates 40 worlds, seconds of CPU
-const GRID_STEP = 0.1;
 // The directions the wandering body tries, a unit vector each, and standing still.
 const DIRECTIONS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1], [0, 0]].map(([x, z]) => [x, z].map((v) => v * Math.SQRT1_2 ** Math.abs(x * z)));
 
@@ -101,38 +100,25 @@ describe('PlayerBody', () => {
 
   for (const seed of SEEDS) {
     it(`seed ${seed}: every building is enterable`, () => {
-      const { world, spawn } = generateWorld(seed);
+      const { world, spawn } = generateTown(seed);
       expect(world.groundAt(spawn.x, spawn.z, 1), 'spawn is on the ground').toBe(1);
 
-      // Flood fill the ground floor from the spawn on a grid much finer than the walls are thick.
-      // Grid points sit at odd multiples of 0.05, so the player's edges never coincide with a wall face.
-      const N = Math.round(world.sizeX / GRID_STEP);
-      const point = (i: number) => (i + 0.5) * GRID_STEP;
-      const probe = new PlayerBody(world, spawn.x, spawn.z);
-      const reached = new Uint8Array(N * N);
-      const queue = [[Math.floor(spawn.x / GRID_STEP), Math.floor(spawn.z / GRID_STEP)]];
-      while (queue.length) {
-        const [i, k] = queue.pop()!;
-        if (i < 0 || k < 0 || i >= N || k >= N || reached[i + k * N] || !probe.canStand(point(i), point(k))) continue;
-        reached[i + k * N] = 1;
-        queue.push([i + 1, k], [i - 1, k], [i, k + 1], [i, k - 1]);
-      }
-
-      expect(reached.reduce((sum, v) => sum + v, 0), 'the open ground around the spawn is connected').toBeGreaterThan((N * N) / 2);
+      const { nx, nz, reached, point } = floodFill(world, spawn);
+      expect(reached.reduce((sum, v) => sum + v, 0), 'the open ground around the spawn is connected').toBeGreaterThan((nx * nz) / 2);
 
       const buildings = new Set(world.buildings.filter((id) => id !== 0));
       expect(buildings.size, 'houses were generated').toBeGreaterThan(0);
       const entered = new Set<number>();
-      for (let k = 0; k < N; k++) {
-        for (let i = 0; i < N; i++) {
-          if (reached[i + k * N]) entered.add(world.buildingAt(Math.floor(point(i)), Math.floor(point(k))));
+      for (let k = 0; k < nz; k++) {
+        for (let i = 0; i < nx; i++) {
+          if (reached[i + k * nx]) entered.add(world.buildingAt(Math.floor(point(i)), Math.floor(point(k))));
         }
       }
       for (const id of buildings) expect(entered.has(id), `building ${id} can be entered from the spawn`).toBe(true);
     });
 
     it(`seed ${seed}: stairs are docked to the wall and can be climbed`, () => {
-      const { world } = generateWorld(seed);
+      const { world } = generateTown(seed);
       for (const stairs of staircases(world)) {
         const { x, z, dir, wall, cells } = stairs;
 
@@ -163,7 +149,7 @@ describe('PlayerBody', () => {
 
   it('the player never overlaps anything and never freezes while wandering around the stairs', () => {
     for (let seed = 1; seed <= 40; seed++) {
-      const { world } = generateWorld(seed);
+      const { world } = generateTown(seed);
       let rng = seed;
       const random = () => (rng = (rng * 1664525 + 1013904223) >>> 0) / 4294967296;
 

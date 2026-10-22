@@ -1,4 +1,4 @@
-import type { PlayerBody } from '@game/character/player-body';
+import { PlayerBody } from '@game/character/player-body';
 import { Block, STOREY_H, StairDir, Top, WALL_SIDES, WallSide, isStairs, type WallSideInfo } from '@game/world/blocks';
 import { World } from '@game/world/world';
 
@@ -24,6 +24,33 @@ export function wallWorld(): World {
 
 export function walk(body: PlayerBody, vx: number, vz: number, seconds: number): void {
   for (let t = 0; t < seconds; t += DT) body.update(DT, vx, vz);
+}
+
+// Where the body can get to on the ground floor, by a flood fill from the spawn on a grid much finer than the walls are thick.
+// Grid points sit at odd multiples of 0.05, so the player's edges never coincide with a wall face.
+export const GRID_STEP = 0.1;
+
+export interface Reach {
+  nx: number; // the size of the grid
+  nz: number;
+  reached: Uint8Array; // 1 where the body can stand, i + k * nx
+  point: (i: number) => number; // the coordinate of a grid line
+}
+
+export function floodFill(world: World, spawn: { x: number; z: number }): Reach {
+  const nx = Math.round(world.sizeX / GRID_STEP);
+  const nz = Math.round(world.sizeZ / GRID_STEP);
+  const point = (i: number) => (i + 0.5) * GRID_STEP;
+  const probe = new PlayerBody(world, spawn.x, spawn.z);
+  const reached = new Uint8Array(nx * nz);
+  const queue = [[Math.floor(spawn.x / GRID_STEP), Math.floor(spawn.z / GRID_STEP)]];
+  while (queue.length) {
+    const [i, k] = queue.pop()!;
+    if (i < 0 || k < 0 || i >= nx || k >= nz || reached[i + k * nx] || !probe.canStand(point(i), point(k))) continue;
+    reached[i + k * nx] = 1;
+    queue.push([i + 1, k], [i - 1, k], [i, k + 1], [i, k - 1]);
+  }
+  return { nx, nz, reached, point };
 }
 
 // A staircase: its first (lowest) step, the direction it rises to, the wall it is docked to and its stairwell,

@@ -19,9 +19,15 @@ import type { GameHost } from '@game/game-host';
 import { Input } from '@game/input/input';
 import { createReadouts, type Readout } from '@game/readouts';
 import type { GameTuning } from '@game/tuning';
-import { generateWorld } from '@game/world/generator';
+import { generateWorld, type SceneId } from '@game/world/generator';
 import { WorldView } from '@game/world-view/world-view';
 import * as THREE from 'three';
+
+// Which world to play: the scene and the seed of its generator.
+export interface GameOptions {
+  scene: SceneId;
+  seed: number;
+}
 
 // The game: it builds all the parts of a world and plays them frame after frame, in a fixed order.
 // It knows nothing of the app around it: whatever it needs from there (the settings, the tuned numbers) comes in `host`,
@@ -51,7 +57,7 @@ export class Game {
   private disposed = false;
 
   // The canvas is put into `container`, which fills the window.
-  constructor(container: HTMLElement, seed: number, host: GameHost) {
+  constructor(container: HTMLElement, { scene, seed }: GameOptions, host: GameHost) {
     this.tuning = host.tuning;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -64,7 +70,7 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, innerWidth / innerHeight, CAMERA_NEAR, CAMERA_FAR);
     addEventListener('resize', () => this.resize(), { signal: this.listeners.signal });
 
-    const { world, spawn } = generateWorld(seed);
+    const { world, spawn } = generateWorld(scene, seed);
     this.worldView = new WorldView(world, this.scene);
     this.body = new PlayerBody(world, spawn.x, spawn.z);
     this.visualY = this.body.y;
