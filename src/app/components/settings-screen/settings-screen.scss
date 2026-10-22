@@ -1,0 +1,44 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.panel {
+  display: grid;
+  gap: 14px;
+  min-width: 320px;
+  padding: 20px 24px;
+  color: #fff;
+  background: rgba(20, 24, 30, 0.92);
+  border-radius: 12px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type='range'] {
+  flex: 1;
+}
+
+output {
+  min-width: 3.5em;
+  text-align: right;
+}
+
+button {
+  justify-self: end;
+  padding: 6px 16px;
+  font: inherit;
+}

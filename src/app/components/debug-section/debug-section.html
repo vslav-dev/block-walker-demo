@@ -1,0 +1,21 @@
+<details name="debug-sections">
+  <summary>{{ groupInput() }}</summary>
+  <div class="body">
+    <div class="state">
+      @for (line of readoutsInput(); track line.label) {
+        <div>
+          <span>{{ line.label }}</span>
+          <span>{{ line.value }}</span>
+        </div>
+      }
+    </div>
+    @for (spec of specsInput(); track spec.key) {
+      <tunable-control [specInput]="spec"
+                       [valueInput]="view$$().values[spec.key]"
+                       [changedInput]="view$$().changed.has(spec.key)"
+                       (changeOutput)="set(spec.key, $event)"
+                       (resetOutput)="reset(spec.key)"
+                       (editOutput)="setEditing(spec.key, $event)" />
+    }
+  </div>
+</details>

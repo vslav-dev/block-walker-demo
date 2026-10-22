@@ -1,0 +1,26 @@
+:host {
+  display: block;
+}
+
+details {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+summary {
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: bold;
+  color: #9fb3c8;
+  cursor: pointer;
+}
+
+.body {
+  padding-bottom: 6px;
+}
+
+.state > div {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+}

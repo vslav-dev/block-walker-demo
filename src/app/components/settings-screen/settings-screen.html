@@ -1,0 +1,28 @@
+@if (paused$$()) {
+  <div class="backdrop"
+       (click)="closeOnBackdrop($event)">
+    <div class="panel">
+      <h2>Settings</h2>
+      <label>
+        <input #aimToggleElem
+               type="checkbox"
+               [checked]="aimToggle$$()"
+               (change)="setAimToggle(aimToggleElem.checked)">
+        Right button switches the aim on and off (otherwise hold it)
+      </label>
+      <label>
+        Mouse sensitivity
+        <input #sensitivityElem
+               type="range"
+               step="0.05"
+               [min]="sensitivityRange.min"
+               [max]="sensitivityRange.max"
+               [value]="mouseSensitivity$$()"
+               (input)="setMouseSensitivity(sensitivityElem.valueAsNumber)">
+        <output>{{ mouseSensitivity$$() | number: '1.2-2' }}×</output>
+      </label>
+      <button type="button"
+              (click)="close()">Close</button>
+    </div>
+  </div>
+}

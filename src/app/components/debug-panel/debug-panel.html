@@ -1,0 +1,38 @@
+<aside class="panel"
+       [hidden]="isOff$$()"
+       [class.fps]="isFps$$()"
+       (keydown)="stopEvent($event)"
+       (keyup)="stopEvent($event)"
+       (pointermove)="stopEvent($event)"
+       (change)="releaseFocus($event)"
+       (click)="releaseFocusOnPress($event)">
+  <div class="header">
+    @for (readout of headerReadouts$$(); track readout.label) {
+      <span>{{ readout.label }}: {{ readout.value }}</span>
+    }
+    @if (!isFps$$()) {
+      <h2>Debug (F3)</h2>
+    }
+  </div>
+  @if (isFull$$()) {
+    <div class="sections">
+      @for (section of sections$$(); track section.group) {
+        <debug-section [groupInput]="section.group"
+                       [readoutsInput]="section.readouts"
+                       [specsInput]="section.specs" />
+      }
+    </div>
+    <div class="actions">
+      <button type="button"
+              (click)="copy()">Copy all numbers</button>
+      <button type="button"
+              (click)="resetAll()">Reset all</button>
+    </div>
+    @if (report$$(); as report) {
+      <textarea #reportElem
+                readonly
+                rows="8"
+                [value]="report"></textarea>
+    }
+  }
+</aside>

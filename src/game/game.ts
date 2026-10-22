@@ -1,0 +1,183 @@
+import { Aim } from '@game/aim/aim';
+import { AimLine } from '@game/aim/aim-line';
+import { CameraRig } from '@game/camera/camera-rig';
+import { PlayerBody, RUN_SPEED, WALK_SPEED } from '@game/character/player-body';
+import { Robot, loadRobot } from '@game/character/robot';
+import {
+  CAMERA_FAR,
+  CAMERA_FOV,
+  CAMERA_NEAR,
+  FPS_SMOOTHING,
+  MAX_FRAME_SECONDS,
+  MAX_PIXEL_RATIO,
+  STAIRS_SMOOTHING_SPEED,
+} from '@game/config';
+import { screenToWorld } from '@game/core/angles';
+import { advanceHour, skyAt, type SkyState } from '@game/daylight/day-cycle';
+import { Sky } from '@game/daylight/sky';
+import type { GameHost } from '@game/game-host';
+import { Input } from '@game/input/input';
+import { createReadouts, type Readout } from '@game/readouts';
+import type { GameTuning } from '@game/tuning';
+import { generateWorld } from '@game/world/generator';
+import { WorldView } from '@game/world-view/world-view';
+import * as THREE from 'three';
+
+// The game: it builds all the parts of a world and plays them frame after frame, in a fixed order.
+// It knows nothing of the app around it: whatever it needs from there (the settings, the tuned numbers) comes in `host`,
+// and it shows what it has to say (`readouts`) for the app to put on the screen.
+export class Game {
+  readonly tuning: GameTuning;
+  readonly body: PlayerBody;
+  readonly aim: Aim;
+  readonly rig: CameraRig;
+  readonly readouts: Readout[];
+  skyState: SkyState;
+  fps = 60;
+
+  private readonly renderer: THREE.WebGLRenderer;
+  private readonly scene = new THREE.Scene();
+  private readonly camera: THREE.PerspectiveCamera;
+  private readonly sky: Sky;
+  private readonly worldView: WorldView;
+  private readonly input: Input;
+  private readonly aimLine: AimLine;
+  private readonly listeners = new AbortController();
+  private readonly playerPosition = new THREE.Vector3();
+  private robot: Robot | null = null; // stays null if the model is not loaded (yet)
+  private visualY: number; // the height the character is drawn at
+  private last = performance.now();
+  private paused = false;
+  private disposed = false;
+
+  // The canvas is put into `container`, which fills the window.
+  constructor(container: HTMLElement, seed: number, host: GameHost) {
+    this.tuning = host.tuning;
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
+    this.renderer.setSize(innerWidth, innerHeight);
+    this.renderer.shadowMap.enabled = true;
+    container.appendChild(this.renderer.domElement);
+
+    this.sky = new Sky(this.scene);
+    this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, innerWidth / innerHeight, CAMERA_NEAR, CAMERA_FAR);
+    addEventListener('resize', () => this.resize(), { signal: this.listeners.signal });
+
+    const { world, spawn } = generateWorld(seed);
+    this.worldView = new WorldView(world, this.scene);
+    this.body = new PlayerBody(world, spawn.x, spawn.z);
+    this.visualY = this.body.y;
+    this.input = new Input(this.renderer.domElement, host.settings);
+    this.aim = new Aim(host.settings);
+    this.aimLine = new AimLine(world);
+    this.rig = new CameraRig(this.camera, this.body.x, this.body.y, this.body.z, this.tuning);
+    this.scene.add(this.aimLine.root);
+
+    this.skyState = skyAt(this.tuning.hour, this.tuning);
+    this.readouts = createReadouts(this);
+  }
+
+  // Starts the frames.
+  start(): void {
+    this.last = performance.now();
+    this.renderer.setAnimationLoop((time) => this.frame(time));
+  }
+
+  // The game stands still (the picture stays) and lets go of the keys and the pointer, until it is resumed.
+  pause(): void {
+    this.paused = true;
+    this.input.reset();
+  }
+
+  // Takes back the pointer in the aim mode, so call it from a click or a key.
+  resume(): void {
+    this.paused = false;
+    this.input.resume();
+  }
+
+  // Loads the character's model and puts it into the world. The game goes on without it if that fails.
+  async loadCharacter(): Promise<void> {
+    const robot = await loadRobot();
+    if (this.disposed) return;
+    this.scene.add(robot.root);
+    this.robot = robot;
+  }
+
+  // Stops the frames and gives everything back: the listeners, the pointer, the canvas and the graphics memory.
+  dispose(): void {
+    this.disposed = true;
+    this.renderer.setAnimationLoop(null);
+    this.listeners.abort();
+    this.input.dispose();
+    this.renderer.dispose();
+    this.renderer.forceContextLoss();
+    this.renderer.domElement.remove();
+  }
+
+  private resize(): void {
+    this.camera.aspect = innerWidth / innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(innerWidth, innerHeight);
+  }
+
+  private frame(time: number): void {
+    const dt = Math.min((time - this.last) / 1000, MAX_FRAME_SECONDS);
+    this.fps += (1000 / Math.max(time - this.last, 1) - this.fps) * FPS_SMOOTHING;
+    this.last = time;
+    if (!this.paused) this.step(dt); // paused: the picture stays as it is
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  // One step of the game. The order matters: the camera follows the character where it has just moved, the light follows
+  // the camera, the aim reads the camera that has just turned, and the character is drawn where the body is.
+  private step(dt: number): void {
+    const move = this.moveCharacter(dt);
+    this.followWithCamera(dt);
+    this.advanceDaylight(dt);
+    this.updateAim(dt);
+    this.updateCharacter(dt, move);
+  }
+
+  // Returns the direction of the movement: a unit vector, or (0, 0) if the character stands.
+  private moveCharacter(dt: number): { x: number; z: number } {
+    // Movement is relative to the camera: W = up the screen, which is north in the overview and the aim in the aim mode.
+    const axis = this.input.moveAxis();
+    const length = Math.hypot(axis.x, axis.z);
+    const move = screenToWorld(length ? axis.x / length : 0, length ? axis.z / length : 0, this.rig.heading);
+    const running = this.input.running && !this.robot?.steering.backpedal; // no running backwards
+    const speed = running ? RUN_SPEED : WALK_SPEED;
+    this.body.update(dt, move.x * speed, move.z * speed);
+    this.visualY += (this.body.y - this.visualY) * (1 - Math.exp(-STAIRS_SMOOTHING_SPEED * dt)); // smooths stair steps
+    return move;
+  }
+
+  // The camera follows the character and looks where the aim says (one frame late, which its own smoothing hides);
+  // the view of the world follows the camera.
+  private followWithCamera(dt: number): void {
+    const { body } = this;
+    this.playerPosition.set(body.x, this.visualY, body.z);
+    this.rig.update(dt, this.playerPosition, this.aim.heading, this.input.takeWheelY());
+    this.worldView.update(body.x, body.y, body.z, this.camera, dt);
+  }
+
+  // The light follows the camera's target.
+  private advanceDaylight(dt: number): void {
+    this.tuning.hour = advanceHour(this.tuning.hour, dt, this.tuning.timeFlow);
+    this.skyState = skyAt(this.tuning.hour, this.tuning);
+    this.sky.update(this.skyState, this.rig.target);
+  }
+
+  // The character looks at the cursor, or where the mouse has turned the view in the aim mode.
+  private updateAim(dt: number): void {
+    const { body, aim, tuning } = this;
+    aim.update(dt, this.input.aiming, this.input.takeLookX(), this.rig.cursorYaw(this.input.mouse, body.x, this.visualY, body.z));
+    this.aimLine.update(aim.aiming && tuning.aimLine, aim.aiming && tuning.aimLineOverEverything, body.x, this.visualY, body.z, aim.yaw);
+  }
+
+  private updateCharacter(dt: number, move: { x: number; z: number }): void {
+    if (!this.robot) return;
+    this.robot.setPosition(this.body.x, this.visualY, this.body.z);
+    this.robot.update(dt, this.aim.yaw, move.x, move.z, this.input.running);
+  }
+}

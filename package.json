@@ -1,9 +1,43 @@
 {
   "name": "block-walker-demo",
-  "private": true,
-  "type": "module",
+  "version": "0.0.0",
   "scripts": {
-    "start": "python3 -m http.server 8080",
-    "test": "node --test \"test/*.test.js\""
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
+  },
+  "prettier": {
+    "printWidth": 120,
+    "singleQuote": true,
+    "overrides": [
+      {
+        "files": "*.html",
+        "options": {
+          "parser": "angular"
+        }
+      }
+    ]
+  },
+  "private": true,
+  "packageManager": "npm@10.9.2",
+  "dependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/compiler": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/platform-browser": "^22.0.0",
+    "rxjs": "~7.8.0",
+    "three": "0.186.1",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.0.0",
+    "@angular/cli": "^22.0.0",
+    "@angular/compiler-cli": "^22.0.0",
+    "@types/three": "0.186.0",
+    "jsdom": "^27.1.0",
+    "typescript": "~6.0.2",
+    "vitest": "^4.0.8"
   }
 }

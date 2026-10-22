@@ -1,0 +1,43 @@
+@if (switchSpec$$(); as spec) {
+  <div class="row switch-row">
+    <label class="switch">
+      <input #boxElem
+             type="checkbox"
+             [checked]="checked$$()"
+             (change)="changeOutput.emit(boxElem.checked)">
+      {{ spec.label }}
+    </label>
+    <button type="button"
+            [title]="'Default: ' + spec.value"
+            [disabled]="!changedInput()"
+            (click)="resetOutput.emit()">↺</button>
+  </div>
+} @else if (numberSpec$$(); as spec) {
+  <div class="row">
+    <label>{{ spec.label }}</label>
+    <div>
+      <input #sliderElem
+             type="range"
+             [min]="spec.min"
+             [max]="spec.max"
+             [step]="spec.step"
+             [value]="numberValue$$()"
+             (input)="changeOutput.emit(+sliderElem.value)"
+             (focus)="editOutput.emit(true)"
+             (blur)="editOutput.emit(false)">
+      <input #numberElem
+             type="number"
+             [min]="spec.min"
+             [max]="spec.max"
+             [step]="spec.step"
+             [value]="numberValue$$()"
+             (change)="changeOutput.emit(+numberElem.value)"
+             (focus)="editOutput.emit(true)"
+             (blur)="editOutput.emit(false)">
+      <button type="button"
+              [title]="'Default: ' + spec.value"
+              [disabled]="!changedInput()"
+              (click)="resetOutput.emit()">↺</button>
+    </div>
+  </div>
+}
