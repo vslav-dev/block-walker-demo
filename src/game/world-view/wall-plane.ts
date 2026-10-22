@@ -16,8 +16,12 @@ export function wallPlaneOf(side: WallSideInfo, x: number, z: number): WallPlane
 
 export const wallPlaneKey = ({ axis, at }: WallPlane): string => `${axis}${at}`;
 
-// Is the plane between the two points, one on each side of it? A wall in a plane that is between the camera and the player
-// is in the way of the view; a wall in any other plane is not, whichever way it faces.
-export function separates({ axis, at }: WallPlane, ax: number, az: number, bx: number, bz: number): boolean {
-  return axis === 'x' ? (ax - at) * (bx - at) < 0 : (az - at) * (bz - at) < 0;
+// Is the plane between the player at (ax, az) and the camera at (bx, bz), one on each side of it? A wall in a plane that is
+// between the camera and the player is in the way of the view; a wall in any other plane is not, whichever way it faces.
+// The player is as wide as `reach` on either side of his middle, so the plane is taken to be between them as soon as his edge
+// that is farther from the camera is across it: the wall begins to go while he is still in the doorway, not when he is through.
+export function separates({ axis, at }: WallPlane, ax: number, az: number, bx: number, bz: number, reach = 0): boolean {
+  const [player, camera] = axis === 'x' ? [ax, bx] : [az, bz];
+  const edge = player + Math.sign(player - camera) * reach;
+  return (edge - at) * (camera - at) < 0;
 }

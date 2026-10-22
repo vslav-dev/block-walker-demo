@@ -67,7 +67,7 @@ export class DebugPanel {
       if (!found) sections.set(group, (found = { group, readouts: [], specs: [] }));
       return found;
     };
-    for (const spec of this.tunables.specs) section(spec.group).specs.push(spec);
+    for (const spec of this.gameService.specs$$()) section(spec.group).specs.push(spec);
     for (const { group, label, value } of this.readoutLines$$()) {
       if (group !== null) section(group).readouts.push({ label, value });
     }

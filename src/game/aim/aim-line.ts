@@ -1,3 +1,4 @@
+import { RenderOrder } from '@game/render-order';
 import { EYE_H, type World } from '@game/world/world';
 import * as THREE from 'three';
 
@@ -5,10 +6,6 @@ const COLOR = 0xff5252;
 const OPACITY = 0.85;
 const WIDTH = 0.04;
 const END_RADIUS = 0.08;
-// The line in the world is drawn before everything translucent, so that a fading wall is drawn over it (and does not hide it
-// with the depth it writes); the line over everything is drawn after the beacons.
-const WORLD_RENDER_ORDER = -1;
-const OVERLAY_RENDER_ORDER = 11;
 
 interface Line {
   root: THREE.Group;
@@ -32,8 +29,8 @@ export class AimLine {
 
   constructor(private readonly world: World) {
     this.range = Math.hypot(world.sizeX, world.sizeZ); // far enough to cross the world from anywhere in it
-    this.world3d = this.createLine({ depthTest: true }, WORLD_RENDER_ORDER);
-    this.overlay = this.createLine({ depthTest: false }, OVERLAY_RENDER_ORDER);
+    this.world3d = this.createLine({ depthTest: true }, RenderOrder.AimLine);
+    this.overlay = this.createLine({ depthTest: false }, RenderOrder.AimLineOverEverything);
     this.root.add(this.world3d.root, this.overlay.root);
   }
 

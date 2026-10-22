@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { Steering } from './steering';
 
-const MODEL_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r186/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
+// The model is a file of the app (public/models), not of a CDN: the game does not depend on anyone's server to show its character.
+// It is RobotExpressive of the three.js examples (CC0, by Tomás Laulhé), as of the tag r186, which never changes: there is
+// nothing to check on a server and nothing to refresh. The address is relative to the page, see <base href> in index.html.
+const MODEL_URL = 'models/RobotExpressive.glb';
 const HEIGHT = 1.7; // world units, the model is rescaled to it
 const CLIPS = { idle: 'Idle', walk: 'Walking', run: 'Running' } as const;
 type Role = keyof typeof CLIPS;
@@ -84,6 +87,13 @@ export class Robot {
     this.spine = SPINE.map(([name, share]) => {
       const bone = findBone(model, name);
       return { bone, share, clean: bone.quaternion.clone() };
+    });
+  }
+
+  // Does the body throw a shadow? It does at first; it is receiving them always.
+  setCastsShadow(on: boolean): void {
+    this.root.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.castShadow = on;
     });
   }
 

@@ -13,12 +13,16 @@ import {
   STAIRS_SMOOTHING_SPEED,
 } from '@game/config';
 import { screenToWorld } from '@game/core/angles';
-import { advanceHour, skyAt, type SkyState } from '@game/daylight/day-cycle';
+import type { Readout } from '@game/core/readout';
 import { Sky } from '@game/daylight/sky';
 import type { GameHost } from '@game/game-host';
 import { Input } from '@game/input/input';
-import { createReadouts, type Readout } from '@game/readouts';
+import { Darkness, type Atmosphere } from '@game/lighting/atmosphere';
+import { Lighting } from '@game/lighting/lighting';
+import { createReadouts } from '@game/readouts';
+import { Sight } from '@game/sight/sight';
 import type { GameTuning } from '@game/tuning';
+import { BIOME_RULES, type Biome } from '@game/world/biome';
 import { generateWorld, type SceneId } from '@game/world/generator';
 import { WorldView } from '@game/world-view/world-view';
 import * as THREE from 'three';
@@ -38,14 +42,16 @@ export class Game {
   readonly aim: Aim;
   readonly rig: CameraRig;
   readonly readouts: Readout[];
-  skyState: SkyState;
+  readonly biome: Biome;
+  readonly atmosphere: Atmosphere;
+  readonly lighting: Lighting;
   fps = 60;
 
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly sky: Sky;
   private readonly worldView: WorldView;
+  private readonly sight: Sight | null; // null where the whole picture is shown
   private readonly input: Input;
   private readonly aimLine: AimLine;
   private readonly listeners = new AbortController();
@@ -60,18 +66,23 @@ export class Game {
   constructor(container: HTMLElement, { scene, seed }: GameOptions, host: GameHost) {
     this.tuning = host.tuning;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    const { world, spawn, biome } = generateWorld(scene, seed);
+    const rules = BIOME_RULES[biome];
+    this.biome = biome;
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, stencil: rules.limitedSight });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
     container.appendChild(this.renderer.domElement);
 
-    this.sky = new Sky(this.scene);
     this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, innerWidth / innerHeight, CAMERA_NEAR, CAMERA_FAR);
     addEventListener('resize', () => this.resize(), { signal: this.listeners.signal });
 
-    const { world, spawn } = generateWorld(scene, seed);
-    this.worldView = new WorldView(world, this.scene);
+    this.atmosphere =rules.sky ? new Sky(this.scene, this.tuning) : new Darkness(this.scene, this.tuning);
+    this.lighting = new Lighting(world, this.scene, this.tuning, rules.carriesLight);
+    this.sight = rules.limitedSight ? new Sight(world, this.scene) : null;
+    this.worldView = new WorldView(world, this.scene, { wallFade: rules.wallFade, sight: this.sight });
     this.body = new PlayerBody(world, spawn.x, spawn.z);
     this.visualY = this.body.y;
     this.input = new Input(this.renderer.domElement, host.settings);
@@ -80,7 +91,6 @@ export class Game {
     this.rig = new CameraRig(this.camera, this.body.x, this.body.y, this.body.z, this.tuning);
     this.scene.add(this.aimLine.root);
 
-    this.skyState = skyAt(this.tuning.hour, this.tuning);
     this.readouts = createReadouts(this);
   }
 
@@ -106,6 +116,7 @@ export class Game {
   async loadCharacter(): Promise<void> {
     const robot = await loadRobot();
     if (this.disposed) return;
+    robot.setCastsShadow(BIOME_RULES[this.biome].bodyShadow);
     this.scene.add(robot.root);
     this.robot = robot;
   }
@@ -135,13 +146,15 @@ export class Game {
     this.renderer.render(this.scene, this.camera);
   }
 
-  // One step of the game. The order matters: the camera follows the character where it has just moved, the light follows
-  // the camera, the aim reads the camera that has just turned, and the character is drawn where the body is.
+  // One step of the game. The order matters: the camera follows the character where it has just moved, the sky follows
+  // the camera, the aim reads the camera that has just turned, the light in the hand goes where the aim says, and the
+  // character is drawn where the body is.
   private step(dt: number): void {
     const move = this.moveCharacter(dt);
     this.followWithCamera(dt);
-    this.advanceDaylight(dt);
+    this.atmosphere.update(dt, this.rig.target);
     this.updateAim(dt);
+    this.lighting.update(dt, this.body.x, this.visualY, this.body.z, this.aim.yaw);
     this.updateCharacter(dt, move);
   }
 
@@ -159,19 +172,13 @@ export class Game {
   }
 
   // The camera follows the character and looks where the aim says (one frame late, which its own smoothing hides);
-  // the view of the world follows the camera.
+  // what the character sees is found, and the view of the world follows the camera and leaves out the rest.
   private followWithCamera(dt: number): void {
     const { body } = this;
     this.playerPosition.set(body.x, this.visualY, body.z);
     this.rig.update(dt, this.playerPosition, this.aim.heading, this.input.takeWheelY());
+    this.sight?.update(body.x, body.y, body.z); // before the view: the view leaves out what he does not see
     this.worldView.update(body.x, body.y, body.z, this.camera, dt);
-  }
-
-  // The light follows the camera's target.
-  private advanceDaylight(dt: number): void {
-    this.tuning.hour = advanceHour(this.tuning.hour, dt, this.tuning.timeFlow);
-    this.skyState = skyAt(this.tuning.hour, this.tuning);
-    this.sky.update(this.skyState, this.rig.target);
   }
 
   // The character looks at the cursor, or where the mouse has turned the view in the aim mode.

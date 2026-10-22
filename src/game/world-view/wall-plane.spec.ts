@@ -26,6 +26,17 @@ describe('wall planes', () => {
     expect(separates({ axis: 'x', at: 4 }, 3, 8, 9, 40), 'the camera far to the east').toBe(true);
   });
 
+  it('a plane is in the way as soon as the edge of the player that is farther from the camera is across it', () => {
+    const plane = { axis: 'z', at: 10 } as const;
+    // The player stands south of the plane at z = 10.3, the camera is farther south; he is 0.4 wide on each side.
+    expect(separates(plane, 3, 10.3, 3, 30), 'by his middle he is not across').toBe(false);
+    expect(separates(plane, 3, 10.3, 3, 30, 0.4), 'by his edge he is').toBe(true);
+    expect(separates(plane, 3, 10.5, 3, 30, 0.4), 'his edge is not yet across').toBe(false);
+    expect(separates(plane, 3, 9.7, 3, 30, 0.4), 'across by his middle: all the more').toBe(true);
+    expect(separates(plane, 3, 9.5, 3, -20, 0.4), 'the camera is north too, and the plane is behind him: his edge is not across').toBe(false);
+    expect(separates(plane, 3, 10.2, 3, 10.2, 0.4), 'the camera right over him, no side that is farther: his middle decides').toBe(false);
+  });
+
   it('the walls of a layer are all in its plane, whichever side of their cells they are on', () => {
     for (const seed of SEEDS) {
       const { world } = generateDepot(seed);

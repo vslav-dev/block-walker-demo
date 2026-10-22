@@ -1,3 +1,4 @@
+import { Biome } from '@game/world/biome';
 import { Block, STOREY_H, Top, WallSide } from '@game/world/blocks';
 import { openDoorway, openRandomWindows } from '@game/world/building/openings';
 import { randomWallCell, sameCell, type BuildingPlan, type Cell, type WallCell } from '@game/world/building/plan';
@@ -101,5 +102,5 @@ export function generateTown(seed: number): GeneratedWorld {
 
   fillColumns(world, center - SPAWN_CLEARING, center - SPAWN_CLEARING, SPAWN_CLEARING * 2, SPAWN_CLEARING * 2, 0);
 
-  return { world, spawn: { x: center + 0.5, z: center + 0.5 } };
+  return { world, spawn: { x: center + 0.5, z: center + 0.5 }, biome: Biome.Surface };
 }

@@ -15,6 +15,8 @@ import {
   stairHeight,
   wallSideToward,
 } from './blocks';
+import type { Biome } from './biome';
+import type { WorldLight } from './light';
 
 export const STEP_UP = 0.55; // max height a character climbs without jumping
 export const BODY_H = 1.7; // character height used for collisions
@@ -29,10 +31,11 @@ export interface Door {
   side: number;
 }
 
-// A world as a generator makes it, and where the player stands in it at the start.
+// A world as a generator makes it, where the player stands in it at the start and what kind of place it is.
 export interface GeneratedWorld {
   world: World;
   spawn: { x: number; z: number };
+  biome: Biome;
 }
 
 // Voxel grid + collision queries. Blocks are stored in a flat array, x fastest, then z, then y.
@@ -48,6 +51,8 @@ export class World {
   readonly buildings: Uint8Array;
   // The entrance of every building.
   readonly doors: Door[] = [];
+  // The sources of light that stand in the world. The sky is not one of them.
+  readonly lights: WorldLight[] = [];
 
   constructor(
     readonly sizeX: number,
@@ -149,8 +154,10 @@ export class World {
 
   // How far a horizontal ray from (x, y, z) along the unit direction (dx, dz) goes before it meets a cube, a stairs surface,
   // a wall or the edge of the world, at most maxDist. Doorways and windows are open where they are clear, at the height
-  // of the ray (see OPENING_CLEAR). Floors are not met: they lie between the rows of cells, and a level ray stays within its row.
-  castRay(x: number, y: number, z: number, dx: number, dz: number, maxDist: number): number {
+  // of the ray (see OPENING_CLEAR), unless `throughOpenings` is false: then they are walls like the rest, for what must not pass
+  // from one room to the other even through a doorway. Floors are not met: they lie between the rows of cells, and a level ray
+  // stays within its row.
+  castRay(x: number, y: number, z: number, dx: number, dz: number, maxDist: number, throughOpenings = true): number {
     const cy = Math.floor(y);
     let cx = Math.floor(x);
     let cz = Math.floor(z);
@@ -161,8 +168,8 @@ export class World {
       const nz = Math.floor(pz);
       const blocked =
         !this.inBounds(nx, cy, nz) ||
-        (nx !== cx && this.wallStopsRay(cx, cz, nx, cz, y)) ||
-        (nz !== cz && this.wallStopsRay(nx, cz, nx, nz, y)) ||
+        (nx !== cx && this.wallStopsRay(cx, cz, nx, cz, y, throughOpenings)) ||
+        (nz !== cz && this.wallStopsRay(nx, cz, nx, nz, y, throughOpenings)) ||
         this.solidAt(nx, cy, nz, y, px - nx, pz - nz);
       if (blocked) return t - RAY_STEP;
       cx = nx;
@@ -178,21 +185,22 @@ export class World {
   }
 
   // Does the wall on the border between two neighboring cells stop a level ray at height y? It belongs to either of the two cells.
-  private wallStopsRay(ax: number, az: number, bx: number, bz: number, y: number): boolean {
+  private wallStopsRay(ax: number, az: number, bx: number, bz: number, y: number, throughOpenings: boolean): boolean {
     const toward = wallSideToward(bx - ax, bz - az);
     const back = wallSideToward(ax - bx, az - bz);
-    return this.sideStopsRay(ax, az, toward.bit, y) || this.sideStopsRay(bx, bz, back.bit, y);
+    return this.sideStopsRay(ax, az, toward.bit, y, throughOpenings) || this.sideStopsRay(bx, bz, back.bit, y, throughOpenings);
   }
 
   // Does the wall on one side of a cell stop a ray at height y? Where the wall has an opening, only the opening's clear
   // part lets it through, the frame and the wall around it stop it, whichever rows have slabs. Elsewhere the slab of the row decides.
-  private sideStopsRay(cx: number, cz: number, side: number, y: number): boolean {
+  // With `throughOpenings` false an opening stops the ray as the wall around it does.
+  sideStopsRay(cx: number, cz: number, side: number, y: number, throughOpenings = true): boolean {
     const row = Math.floor(y);
     const floor = 1 + Math.floor((row - 1) / STOREY_H) * STOREY_H; // the plane of the storey, the bottom of its lowest row
     const frame = this.getFrame(cx, floor, cz);
     if (frame !== 0 && frameSide(frame) === side) {
       const [from, to] = OPENING_CLEAR[frameOpening(frame)];
-      return y - floor < from || y - floor >= to;
+      return !throughOpenings || y - floor < from || y - floor >= to;
     }
     return (this.getWalls(cx, row, cz) & side) !== 0;
   }

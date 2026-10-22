@@ -1,9 +1,11 @@
 import { Block, StairDir } from '@game/world/blocks';
 import type { World } from '@game/world/world';
+import { doorwayPull } from './doorway';
 
 export const RADIUS = 0.3; // half-size of the footprint against cubes, ceilings and the ground
 // Against thin walls the footprint is wider: arms and tools reach this far, and a thin wall would show them on its other side.
 // Cubes are thick enough to hide them. Stays below half of a doorway (1) and of the 0.9 wide free part of a wall cell.
+// A doorway is 1 wide and the body 2 * WALL_REACH = 0.8 against walls, so the middle of the body has 0.2 to go through by: the body is led, see doorway.ts.
 export const WALL_REACH = 0.4;
 const GRAVITY = 30;
 const SLIDE_MAX = 0.45; // how far to the side the way round an obstacle may be, for the body to be pushed there
@@ -45,6 +47,7 @@ export class PlayerBody {
     const { x, z } = this;
     const dx = vx * dt;
     const dz = vz * dt;
+    this.funnelThroughDoorways(dx, dz);
     const straight = (dx !== 0) !== (dz !== 0);
     if (straight && !this.canStand(x + dx, z + dz)) this.slideAround(dx, dz);
     else this.move(dx, dz);
@@ -82,6 +85,14 @@ export class PlayerBody {
         return;
       }
     }
+  }
+
+  // Walking at a doorway leads the body to the middle of it, in any direction and at any speed, before the step is taken, so
+  // that the step fits: it goes through without ever feeling the jambs, and it is not led by walking along the wall
+  // or standing. dx/dz = the step the body means to take.
+  private funnelThroughDoorways(dx: number, dz: number): void {
+    const pull = doorwayPull(this.world, this.x, this.y, this.z, dx, dz);
+    if (pull.x !== 0 || pull.z !== 0) this.move(pull.x, pull.z);
   }
 
   // Walking along stairs pulls the body to their middle, so it never climbs beside the stairwell and hits the ceiling.

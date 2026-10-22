@@ -18,6 +18,11 @@ export class GameService {
 
   readonly game$$ = signal<Game | null>(null);
   readonly readouts$$ = computed(() => this.game$$()?.readouts ?? []);
+  // The tunable numbers that matter in the game that is played: those of the sky are no use in the dark, and the other way round.
+  readonly specs$$ = computed(() => {
+    const biome = this.game$$()?.biome;
+    return this.tunables.specs.filter((spec) => spec.shownIn === undefined || spec.shownIn === biome);
+  });
   readonly status$$ = signal<string | null>(null);
   // The game stands still while the player is in the settings.
   readonly paused$$ = signal(false);

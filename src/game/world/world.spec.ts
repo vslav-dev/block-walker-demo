@@ -77,4 +77,16 @@ describe('World.castRay', () => {
     expect(upper.castRay(1.5, 3 + EYE_H, 4.5, 1, 0, 100), 'a window of the upper storey is as clear').toBeGreaterThanOrEqual(2.6);
     expect(upper.castRay(1.5, 3 + 0.3, 4.5, 1, 0, 100), 'and as closed under it').toBeLessThan(2.6);
   });
+
+  it('a ray that is not to go through openings stops at a doorway or a window as at a wall, at any height', () => {
+    const wall = flatWorld();
+    for (const y of [1, 2]) wall.addWalls(4, y, 4, WallSide.West);
+    wall.removeWalls(4, 1, 4, WallSide.West);
+    wall.removeWalls(4, 2, 4, WallSide.West);
+    wall.setFrame(4, 1, 4, frameValue(WallSide.West, Opening.Door));
+    for (const height of [0.3, 1, EYE_H]) {
+      expect(wall.castRay(1.5, 1 + height, 4.5, 1, 0, 100), `a doorway lets the sight through at ${height}`).toBeGreaterThanOrEqual(2.6);
+      expect(wall.castRay(1.5, 1 + height, 4.5, 1, 0, 100, false), `and does not let a ray that is not to go through it at ${height}`).toBeLessThan(2.6);
+    }
+  });
 });

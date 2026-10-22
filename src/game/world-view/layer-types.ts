@@ -9,6 +9,8 @@ export const wallType = (part: WallPart): LayerType => `wall-${part}`;
 export const topType = (kind: number): LayerType => `top-${kind}`; // floors and roofs, one type per Top kind
 export const isWallType = (type: LayerType): boolean => type.startsWith('wall-');
 export const isTopType = (type: LayerType): boolean => type.startsWith('top-');
+// The part of a wall that a layer of the wall type is.
+export const wallPartOf = (type: LayerType): WallPart => type.slice('wall-'.length) as WallPart;
 
 export const LAYER_COLORS: Record<LayerType, number> = {
   ...Object.fromEntries(Object.entries(BlockColor).map(([id, color]) => [blockType(Number(id)), color])),

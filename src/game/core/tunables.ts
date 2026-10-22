@@ -4,6 +4,7 @@ interface TunableBase {
   key: string;
   group: string;
   label: string;
+  shownIn?: string; // the panel shows it only while the game is of this kind (a biome); without it, always
 }
 
 export interface NumberTunable extends TunableBase {
@@ -40,6 +41,8 @@ function fit(spec: TunableSpec, value: unknown): TunableValue | undefined {
 // The changed values are kept in the browser, so a reload (a new world) keeps them.
 // A spec with `live: true` is a number that the game moves itself (the time of day): the panel can set it, but it is
 // never "changed" from its default, so it is neither kept nor reported as retuned.
+// A spec with `shownIn` matters only in games of that kind (the number of the sky in the open, of a candle indoors): the
+// panel leaves it out in the others, the registry keeps its value all the same.
 // A spec with `boolean: true` is a switch, { key, group, label, boolean, value }: its value is true or false, no range.
 // T is the shape of `values`: the keys of the specs, which the code that lists them knows.
 export class Tunables<T extends object = Record<string, TunableValue>> {

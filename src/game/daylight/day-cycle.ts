@@ -1,4 +1,5 @@
 import type { TunableSpec } from '@game/core/tunables';
+import { Biome } from '@game/world/biome';
 
 // The day and the night as pure numbers: for an hour of the day, where the light comes from and what the sky and the light
 // look like. No rendering here, see sky.ts for that.
@@ -19,13 +20,16 @@ export interface DayTuning {
   nightShadow: number;
 }
 
+export const DAY_GROUP = 'Day and night';
+const DAY = { group: DAY_GROUP, shownIn: Biome.Surface }; // there is no day and no night in the other places
+
 export const DAY_TUNABLES: readonly TunableSpec[] = [
-  { key: 'hour', group: 'Day and night', label: 'Time of day (h)', min: 0, max: 24, step: 0.05, value: 10, live: true },
-  { key: 'timeFlow', group: 'Day and night', label: 'Speed of time (0 = stopped)', min: 0, max: 300, step: 0.5, value: 1 },
-  { key: 'shadowFadeAngle', group: 'Day and night', label: 'Shadows start to fade at light angle (°)', min: 5, max: 60, step: 1, value: 15 },
-  { key: 'shadowFadeRange', group: 'Day and night', label: 'Shadows fade out over (°)', min: 1, max: 30, step: 1, value: 8 },
-  { key: 'dayShadow', group: 'Day and night', label: 'Shadow strength by the sun', min: 0, max: 1, step: 0.05, value: 1 },
-  { key: 'nightShadow', group: 'Day and night', label: 'Shadow strength by the moon', min: 0, max: 1, step: 0.05, value: 0.4 },
+  { key: 'hour', ...DAY, label: 'Time of day (h)', min: 0, max: 24, step: 0.05, value: 10, live: true },
+  { key: 'timeFlow', ...DAY, label: 'Speed of time (0 = stopped)', min: 0, max: 300, step: 0.5, value: 1 },
+  { key: 'shadowFadeAngle', ...DAY, label: 'Shadows start to fade at light angle (°)', min: 5, max: 60, step: 1, value: 15 },
+  { key: 'shadowFadeRange', ...DAY, label: 'Shadows fade out over (°)', min: 1, max: 30, step: 1, value: 8 },
+  { key: 'dayShadow', ...DAY, label: 'Shadow strength by the sun', min: 0, max: 1, step: 0.05, value: 1 },
+  { key: 'nightShadow', ...DAY, label: 'Shadow strength by the moon', min: 0, max: 1, step: 0.05, value: 0.4 },
 ];
 
 const HOURS = 24;

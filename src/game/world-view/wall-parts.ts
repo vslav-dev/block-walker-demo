@@ -16,6 +16,7 @@ export interface PartBox {
 interface PartDef {
   color: number;
   boxes: PartBox[];
+  castsShadow: boolean; // the wall stops the light; a frame is trim a hand wide, and its shadow on the wall is only a smear of the shadow map's texels
 }
 
 const FRAME_DEPTH = WALL_THICKNESS + 0.04; // a frame is a little deeper than the wall, so it stands out of it
@@ -25,11 +26,16 @@ const DOOR_TOP = DOOR_H + FRAME_WIDTH; // the top of the header
 
 // The boxes of every part on the north side of a cell. Nothing overlaps: the posts stand between the bars.
 export const WALL_PARTS = {
-  plain: { color: WALL_COLOR, boxes: [slab(0, 0, 1, STOREY_H)] },
-  doorWall: { color: WALL_COLOR, boxes: [slab(0, DOOR_TOP, 1, STOREY_H)] },
-  doorFrame: { color: FRAME_COLOR, boxes: [bar(0, 0, FRAME_WIDTH, DOOR_H), bar(1 - FRAME_WIDTH, 0, 1, DOOR_H), bar(0, DOOR_H, 1, DOOR_TOP)] },
-  windowWall: { color: WALL_COLOR, boxes: [slab(0, 0, 1, WINDOW_BOTTOM), slab(0, WINDOW_TOP, 1, STOREY_H)] },
+  plain: { color: WALL_COLOR, boxes: [slab(0, 0, 1, STOREY_H)], castsShadow: true },
+  doorWall: { color: WALL_COLOR, boxes: [slab(0, DOOR_TOP, 1, STOREY_H)], castsShadow: true },
+  doorFrame: {
+    color: FRAME_COLOR,
+    boxes: [bar(0, 0, FRAME_WIDTH, DOOR_H), bar(1 - FRAME_WIDTH, 0, 1, DOOR_H), bar(0, DOOR_H, 1, DOOR_TOP)],
+    castsShadow: false,
+  },
+  windowWall: { color: WALL_COLOR, boxes: [slab(0, 0, 1, WINDOW_BOTTOM), slab(0, WINDOW_TOP, 1, STOREY_H)], castsShadow: true },
   windowFrame: {
+    castsShadow: false,
     color: FRAME_COLOR,
     boxes: [
       bar(0, WINDOW_BOTTOM, 1, WINDOW_BOTTOM + FRAME_WIDTH), // sill

@@ -1,3 +1,4 @@
+import { RenderOrder } from '@game/render-order';
 import { DOOR_H, wallSideByBit } from '@game/world/blocks';
 import type { Door } from '@game/world/world';
 import * as THREE from 'three';
@@ -8,7 +9,6 @@ const MAT_OPACITY = 0.35;
 const BAR = 0.1; // thickness of the frame's bars
 const MAT_DEPTH = 1.2; // how far the mat reaches out from the wall
 const PULSE_SPEED = 4;
-const RENDER_ORDER = 10; // after everything else: the beacon is drawn over walls, so that it shows through them
 
 // A glowing frame in the doorway and a mat on the ground in front of it, drawn over everything. It marks a door that the
 // camera cannot see, so the player always knows on which side of a building the entrance is.
@@ -51,7 +51,7 @@ export class DoorBeacon {
   private createMesh(geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number): THREE.Mesh {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
-    mesh.renderOrder = RENDER_ORDER;
+    mesh.renderOrder = RenderOrder.Beacon; // drawn over the walls, so that it shows through them
     return mesh;
   }
 }

@@ -1,5 +1,5 @@
 import { PlayerBody } from '@game/character/player-body';
-import { Block, STOREY_H, StairDir, Top, WALL_SIDES, WallSide, isStairs, type WallSideInfo } from '@game/world/blocks';
+import { Block, Opening, STOREY_H, StairDir, Top, WALL_SIDES, WallSide, frameValue, isStairs, type WallSideInfo } from '@game/world/blocks';
 import { World } from '@game/world/world';
 
 // Worlds and helpers for the tests.
@@ -19,6 +19,7 @@ export function wallWorld(): World {
   for (let z = 0; z < 8; z++) for (let j = 1; j <= 3; j++) world.addWalls(4, j, z, WallSide.West);
   world.removeWalls(4, 1, 6, WallSide.West);
   world.removeWalls(4, 2, 6, WallSide.West);
+  world.setFrame(4, 1, 6, frameValue(WallSide.West, Opening.Door));
   return world;
 }
 

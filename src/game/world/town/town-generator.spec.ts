@@ -1,9 +1,16 @@
 import { SEEDS, staircases } from '@game/testing/worlds';
+import { Biome } from '@game/world/biome';
 import { Opening, STOREY_H, WALL_SIDES, frameOpening, frameSide } from '@game/world/blocks';
 import { EYE_H } from '@game/world/world';
 import { generateTown } from './town-generator';
 
 describe('generateTown', () => {
+  it('the town is under the sky and has no lights of its own', () => {
+    const { world, biome } = generateTown(1);
+    expect(biome).toBe(Biome.Surface);
+    expect(world.lights).toEqual([]);
+  });
+
   it('every building has exactly one entrance, a gap in its wall as high as the wall', () => {
     for (const seed of SEEDS) {
       const { world } = generateTown(seed);

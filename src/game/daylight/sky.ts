@@ -1,17 +1,25 @@
-import type { SkyState } from '@game/daylight/day-cycle';
+import type { Atmosphere } from '@game/lighting/atmosphere';
+import { formatDegrees, type Readout } from '@game/core/readout';
+import { DAY_GROUP, advanceHour, formatHour, skyAt, type DayTuning, type SkyState } from '@game/daylight/day-cycle';
 import * as THREE from 'three';
 
 const LIGHT_DISTANCE = 30; // from the target of the camera; the shadow camera reaches well past it
 
-// The lights and the colour behind the world: what the day and the night (see day-cycle.ts) look like on the screen.
-// One light casts the shadows, the sun by day and the moon by night, and a hemisphere light stands for the sky.
-// Only numbers change from frame to frame, never the set of lights, so nothing is recompiled.
-export class Sky {
+// The sky of the open: the days and the nights (see day-cycle.ts) on the screen. It moves the time of day, holds the lights
+// and the colour behind the world. One light casts the shadows, the sun by day and the moon by night, and a hemisphere light
+// stands for the sky. Only numbers change from frame to frame, never the set of lights, so nothing is recompiled.
+export class Sky implements Atmosphere {
+  readonly readouts: Readout[];
+  private state: SkyState;
   private readonly background = new THREE.Color();
   private readonly hemisphere = new THREE.HemisphereLight();
   private readonly light = new THREE.DirectionalLight();
 
-  constructor(scene: THREE.Scene) {
+  // tuning = the values of DAY_TUNABLES; the time of day in it is moved by the sky.
+  constructor(
+    scene: THREE.Scene,
+    private readonly tuning: DayTuning,
+  ) {
     scene.background = this.background;
 
     this.light.castShadow = true;
@@ -21,10 +29,23 @@ export class Sky {
     this.light.shadow.normalBias = 0.03;
 
     scene.add(this.hemisphere, this.light, this.light.target);
+
+    this.state = skyAt(tuning.hour, tuning);
+    this.readouts = [
+      { label: 'Time', group: DAY_GROUP, read: () => formatHour(tuning.hour) },
+      { label: 'Key light', group: DAY_GROUP, read: () => (this.state.sun ? 'sun' : 'moon') },
+      { label: 'Light angle', group: DAY_GROUP, read: () => formatDegrees(Math.asin(this.state.direction.y)) },
+      { label: 'Light strength', group: DAY_GROUP, read: () => this.state.keyIntensity.toFixed(2) },
+      { label: 'Shadow strength', group: DAY_GROUP, read: () => this.state.shadow.toFixed(2) },
+    ];
   }
 
-  // state = skyAt(...); target = the point the camera looks at, which the light follows, so that the shadows are drawn around it.
-  update(state: SkyState, target: THREE.Vector3): void {
+  // The light follows the target of the camera, so that the shadows are drawn around it.
+  update(dt: number, target: THREE.Vector3): void {
+    const { tuning } = this;
+    tuning.hour = advanceHour(tuning.hour, dt, tuning.timeFlow);
+    const state = (this.state = skyAt(tuning.hour, tuning));
+
     this.background.setHex(state.background);
     this.hemisphere.color.setHex(state.hemiSky);
     this.hemisphere.groundColor.setHex(state.hemiGround);
