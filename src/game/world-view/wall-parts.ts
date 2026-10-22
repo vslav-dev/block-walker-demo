@@ -1,7 +1,7 @@
 import { DOOR_H, FRAME_COLOR, FRAME_WIDTH, Opening, STOREY_H, WALL_COLOR, WALL_THICKNESS, WINDOW_BOTTOM, WINDOW_TOP } from '@game/world/blocks';
 
 // Mesh types of the slabs and frames, next to the block ids. A wall of a storey is one tall slab, or, with an opening, the
-// wall around it and the frame in it. The walls between the camera and the player fade, so every side of the walls of
+// wall around it and the frame in it. The walls between the camera and the player fade, so every plane of the walls of
 // a storey is a layer of its own.
 
 // A box of a wall part on the north side of a cell: x across it from 0 to 1, y up from the floor of the storey.

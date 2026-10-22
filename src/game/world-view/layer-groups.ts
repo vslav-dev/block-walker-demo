@@ -2,6 +2,7 @@ import { Block, Top, WALL_SIDES, frameOpening, frameSide, isStairs, STOREY_H } f
 import type { World } from '@game/world/world';
 import { blockType, topType, wallType, type LayerType } from './layer-types';
 import { OPENING_PARTS } from './wall-parts';
+import { wallPlaneKey, wallPlaneOf, type WallPlane } from './wall-plane';
 
 // One instance of a layer: the cell and its rotation around the vertical axis.
 export interface LayerCell {
@@ -11,11 +12,12 @@ export interface LayerCell {
   rotY: number;
 }
 
-// The cells of one layer: the same type of block, building and storey (and, for a wall part, the same side).
-// Layers make "hide the roof when the player is inside" and "hide the building" plain visibility toggles.
+// The cells of one layer: the same type of block, building and storey (and, for a wall part, the same plane).
+// Layers make "hide the roof when the player is inside" and "hide the building" plain visibility toggles,
+// and a plane per layer makes "fade the walls between the camera and the player" one as well.
 export interface LayerGroup {
   type: LayerType;
-  side: number; // the WallSide of a wall part, 0 for everything else
+  plane: WallPlane | null; // the plane of a wall part, null for everything else
   building: number;
   storey: number;
   cells: LayerCell[];
@@ -32,11 +34,11 @@ const isStoreyBase = (y: number): boolean => y >= 1 && (y - 1) % STOREY_H === 0;
 export function collectLayerGroups(world: World): LayerGroup[] {
   const groups = new Map<string, LayerGroup>();
 
-  const addInstances = (type: LayerType, storey: number, x: number, z: number, cells: LayerCell[], side = 0): void => {
+  const addInstances = (type: LayerType, storey: number, x: number, z: number, cells: LayerCell[], plane: WallPlane | null = null): void => {
     const building = world.buildingAt(x, z);
-    const key = `${type}|${building}|${storey}|${side}`;
+    const key = `${type}|${building}|${storey}|${plane ? wallPlaneKey(plane) : ''}`;
     let group = groups.get(key);
-    if (!group) groups.set(key, (group = { type, side, building, storey, cells: [] }));
+    if (!group) groups.set(key, (group = { type, plane, building, storey, cells: [] }));
     group.cells.push(...cells);
   };
 
@@ -54,8 +56,9 @@ export function collectLayerGroups(world: World): LayerGroup[] {
           const opened = frame ? frameSide(frame) : 0;
           for (const side of WALL_SIDES) {
             const cells = [{ x, y, z, rotY: side.rotY }];
-            if (opened & side.bit) for (const part of OPENING_PARTS[frameOpening(frame)]) addInstances(wallType(part), storey, x, z, cells, side.bit);
-            else if (world.getWalls(x, y, z) & side.bit) addInstances(wallType('plain'), storey, x, z, cells, side.bit);
+            const plane = wallPlaneOf(side, x, z);
+            if (opened & side.bit) for (const part of OPENING_PARTS[frameOpening(frame)]) addInstances(wallType(part), storey, x, z, cells, plane);
+            else if (world.getWalls(x, y, z) & side.bit) addInstances(wallType('plain'), storey, x, z, cells, plane);
           }
         }
 

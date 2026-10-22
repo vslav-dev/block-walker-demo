@@ -1,5 +1,5 @@
 import { BODY_H } from './world';
-import { DOOR_H, FRAME_WIDTH, STOREY_H, WINDOW_BOTTOM, WINDOW_TOP, WallSide, sidesFacing, storeyAt } from './blocks';
+import { DOOR_H, FRAME_WIDTH, STOREY_H, WINDOW_BOTTOM, WINDOW_TOP, storeyAt } from './blocks';
 
 describe('blocks', () => {
   it('the view switches to the next storey one block up the stairs, not at its floor', () => {
@@ -17,12 +17,5 @@ describe('blocks', () => {
     expect(STOREY_H - WINDOW_TOP, 'wall over the window frame').toBeGreaterThanOrEqual(FRAME_WIDTH - 1e-9);
     expect(WINDOW_BOTTOM, 'wall under the window frame').toBeGreaterThan(0);
     expect(WINDOW_TOP, 'the window is level with the top of the door').toBe(DOOR_H + FRAME_WIDTH);
-  });
-
-  it('the sides facing a direction', () => {
-    expect(sidesFacing(0, 1, 0.15)).toBe(WallSide.South);
-    expect(sidesFacing(0, -1, 0.15)).toBe(WallSide.North);
-    expect(sidesFacing(Math.SQRT1_2, Math.SQRT1_2, 0.15)).toBe(WallSide.South | WallSide.East);
-    expect(sidesFacing(Math.sin(0.1), Math.cos(0.1), 0.15), 'a wall almost edge-on is not facing').toBe(WallSide.South);
   });
 });

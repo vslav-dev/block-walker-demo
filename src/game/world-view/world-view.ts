@@ -1,4 +1,4 @@
-import { Block, Top, sidesFacing, storeyAt } from '@game/world/blocks';
+import { Block, Top, storeyAt } from '@game/world/blocks';
 import type { World } from '@game/world/world';
 import { BuildingVisibility, type Building } from './building-visibility';
 import { DoorBeacon } from './door-beacon';
@@ -7,11 +7,11 @@ import { collectLayerGroups, type LayerCell, type LayerGroup } from './layer-gro
 import { createStairsGeometry, createTopGeometry, createWallPartGeometry, withTwoPasses } from './layer-geometry';
 import { LAYER_COLORS, blockType, isTopType, isWallType, topType, wallType, type LayerType } from './layer-types';
 import { WALL_PARTS, type WallPart } from './wall-parts';
+import { separates, type WallPlane } from './wall-plane';
 import * as THREE from 'three';
 
-const WALL_FADED_OPACITY = 0.2; // the walls facing the camera fade to this opacity while the player is inside
+const WALL_FADED_OPACITY = 0.2; // the walls between the camera and the player fade to this opacity while the player is inside
 const WALL_FADE_SPEED = 10;
-const WALL_FACING = 0.15; // a side faces the camera when its normal points this much (cosine) at it: a wall seen edge-on does not
 
 const _pos = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
@@ -19,7 +19,6 @@ const _unit = new THREE.Vector3(1, 1, 1);
 const _matrix = new THREE.Matrix4();
 const _color = new THREE.Color();
 const _axisY = new THREE.Vector3(0, 1, 0);
-const _toCamera = new THREE.Vector3();
 
 // A wall fades on its own, so it has its own material, drawn in the two passes of its geometry while it is not opaque.
 // It is opaque most of the time: a fading wall would hide what is behind it from the walls drawn after it.
@@ -29,7 +28,7 @@ interface Fade {
 }
 
 interface Layer {
-  side: number;
+  plane: WallPlane | null; // of a wall part; the other layers have none
   owner: Building | undefined; // the layers of the ground and the rocks have no owner
   storey: number;
   mesh: THREE.InstancedMesh;
@@ -72,12 +71,10 @@ export class WorldView {
   update(x: number, y: number, z: number, camera: THREE.PerspectiveCamera, dt: number): void {
     const storey = storeyAt(y);
     const k = 1 - Math.exp(-WALL_FADE_SPEED * dt);
-    const toCamera = _toCamera.set(camera.position.x - x, 0, camera.position.z - z).normalize();
-    const facing = sidesFacing(toCamera.x, toCamera.z, WALL_FACING);
 
     this.visibility.update(x, y, z, camera);
     this.updateBeacons(x, z, camera.position, k, dt);
-    this.updateLayers(storey, facing, k);
+    this.updateLayers(x, z, camera.position, storey, k);
   }
 
   private updateBeacons(x: number, z: number, cameraPosition: THREE.Vector3, k: number, dt: number): void {
@@ -90,18 +87,20 @@ export class WorldView {
     }
   }
 
-  private updateLayers(storey: number, facing: number, k: number): void {
+  private updateLayers(x: number, z: number, cameraPosition: THREE.Vector3, storey: number, k: number): void {
     for (const layer of this.layers) {
       const inside = layer.owner?.touched === true;
       const inView = !(inside && layer.storey > storey) && !layer.owner?.hidden;
-      if (layer.fade) this.fadeWall(layer, layer.fade, inside && layer.storey === storey && (layer.side & facing) !== 0, k);
+      const inTheWay = inside && layer.storey === storey && layer.plane !== null && separates(layer.plane, x, z, cameraPosition.x, cameraPosition.z);
+      if (layer.fade) this.fadeWall(layer, layer.fade, inTheWay, k);
       if (!inView) layer.mesh.material = this.invisibleMaterial;
       else layer.mesh.material = layer.fade && layer.opacity < 1 ? layer.fade.passes : layer.shownMaterial;
     }
   }
 
-  // The walls between the camera and the player, those facing the camera, fade so the player stays visible indoors.
-  // The other walls are seen edge-on or behind the player and never get in the way.
+  // The walls between the camera and the player fade so the player stays visible indoors: those whose plane has the player
+  // on one side and the camera on the other, wherever in the building they are. The other walls are beside the player or
+  // behind him and never get in the way, and a wall does not fade because of the side of its cell it was set on.
   private fadeWall(layer: Layer, fade: Fade, active: boolean, k: number): void {
     const target = active ? WALL_FADED_OPACITY : 1;
     if (layer.opacity === target) return;
@@ -136,7 +135,7 @@ export class WorldView {
       });
     const materials = new Map<LayerType, THREE.Material>();
 
-    for (const { type, side, building, storey, cells } of groups) {
+    for (const { type, plane, building, storey, cells } of groups) {
       const isWall = isWallType(type);
       if (!materials.has(type)) {
         materials.set(type, isWall ? wallMaterial(type) : new THREE.MeshStandardMaterial({ color: LAYER_COLORS[type], roughness: 0.95 }));
@@ -151,7 +150,7 @@ export class WorldView {
       });
       scene.add(mesh);
       this.layers.push({
-        side,
+        plane,
         owner: this.visibility.buildings.get(building),
         storey,
         mesh,
