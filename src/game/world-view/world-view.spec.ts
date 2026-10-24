@@ -74,11 +74,11 @@ describe('WorldView', () => {
     expect(walls.every(Boolean), 'every wall does').toBe(true);
   });
 
-  it('the walls are pulled towards the camera by a constant, not by the slope of the face: the slope shows the ends of the slabs inside the wall through its joints', () => {
+  it('the walls are not pulled towards the camera: what is in the plane of their faces is not patched over in the material but kept out of it, see layer-boxes.spec', () => {
     const scene = new THREE.Scene();
     new WorldView(world, scene, { wallFade: { opacity: 0, speed: 30 }, sight: null });
-    const walls = slabMeshes(scene).filter((mesh) => (mesh.material as THREE.Material).polygonOffset);
+    const walls = slabMeshes(scene).filter((mesh) => (mesh.material as THREE.MeshLambertMaterial).color.getHex() === WALL_COLOR);
     expect(walls.length).toBeGreaterThan(0);
-    for (const mesh of walls) expect((mesh.material as THREE.Material).polygonOffsetFactor).toBe(0);
+    for (const mesh of walls) expect((mesh.material as THREE.Material).polygonOffset).toBe(false);
   });
 });

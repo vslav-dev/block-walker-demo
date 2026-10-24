@@ -1,15 +1,15 @@
 import { WALL_REACH } from '@game/character/player-body';
 import { RenderOrder } from '@game/render-order';
 import type { Sight } from '@game/sight/sight';
-import { Block, Top, storeyAt } from '@game/world/blocks';
+import { storeyAt } from '@game/world/blocks';
 import type { World } from '@game/world/world';
 import { BuildingVisibility, type Building } from './building-visibility';
 import { DoorBeacon } from './door-beacon';
 import { beaconProximity, doorHint, footprintDistance } from './door-hint';
 import { collectLayerGroups, type LayerCell, type LayerGroup } from './layer-groups';
-import { createStairsGeometry, createTopGeometry, createWallPartGeometry, withTwoPasses } from './layer-geometry';
-import { LAYER_COLORS, blockType, isTopType, isWallType, topType, wallPartOf, wallType, type LayerType } from './layer-types';
-import { WALL_PARTS, type WallPart } from './wall-parts';
+import { createLayerGeometry } from './layer-geometry';
+import { LAYER_COLORS, isTopType, isWallType, wallPartOf, type LayerType } from './layer-types';
+import { WALL_PARTS } from './wall-parts';
 import { UnseenCull, cullUnseen } from './unseen-cull';
 import { separates, type WallPlane } from './wall-plane';
 import { wallFaces } from './wall-samples';
@@ -141,11 +141,11 @@ export class WorldView {
   }
 
   private createLayers(groups: LayerGroup[], scene: THREE.Scene): void {
-    const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const topGeometry = createTopGeometry();
-    const geometries: Record<LayerType, THREE.BufferGeometry> = { [blockType(Block.Stairs)]: createStairsGeometry() };
-    for (const kind of Object.values(Top)) geometries[topType(kind)] = topGeometry;
-    for (const part of Object.keys(WALL_PARTS) as WallPart[]) geometries[wallType(part)] = withTwoPasses(createWallPartGeometry(part));
+    const geometries = new Map<LayerType, THREE.BufferGeometry>();
+    const geometryOf = (type: LayerType): THREE.BufferGeometry => {
+      if (!geometries.has(type)) geometries.set(type, createLayerGeometry(type));
+      return geometries.get(type)!;
+    };
 
     const depthPassMaterial = new THREE.MeshBasicMaterial({
       colorWrite: false,
@@ -155,18 +155,12 @@ export class WorldView {
       polygonOffsetFactor: 1,
       polygonOffsetUnits: 1,
     });
-    // A wall can share its cell with a block (stairs docked to it); the pull towards the camera settles the coplanar outer faces
-    // in favor of the wall instead of letting them flicker. It is a constant pull, not one that grows with the slope of the
-    // face (polygonOffsetFactor): the slope pulls the faces that stand edge-on to the camera hardest, and those are the ends of
-    // the slabs where they meet, inside the wall, which then show through as thin lines at the joints.
     // A wall casts a shadow with both its faces: the near one is the occluder, so that the far face, where the wall is
     // lit through a seam or by a bias that is too big, is as deep in the shadow as the whole thickness of the slab.
+    // It is not pulled towards the camera: no face of anything else is in the plane of one of its faces (see WALL_SKIN).
     const wallMaterial = (type: LayerType, extra?: THREE.MeshLambertMaterialParameters) => {
       const material = new THREE.MeshLambertMaterial({
         color: LAYER_COLORS[type],
-        polygonOffset: true,
-        polygonOffsetFactor: 0,
-        polygonOffsetUnits: -1,
         shadowSide: THREE.DoubleSide,
         ...extra,
       });
@@ -188,7 +182,7 @@ export class WorldView {
       if (fadeMaterial) this.options.sight?.restrict(fadeMaterial);
       // Where the picture is of what the character sees, the cells of the walls that he does not are left out of it.
       const culled = isWall && this.options.sight !== null;
-      const geometry = culled ? geometries[type].clone() : (geometries[type] ?? boxGeometry); // the instances' attribute is the layer's own
+      const geometry = culled ? geometryOf(type).clone() : geometryOf(type); // the instances' attribute is the layer's own
       const cull = culled ? new UnseenCull(geometry, cells.map((cell) => wallFaces(plane!, cell))) : null;
       const mesh = new THREE.InstancedMesh(geometry, materials.get(type), cells.length);
       // The ground level needs no shadow, nothing is below it; and the trim of a doorway or a window is no obstacle for light.

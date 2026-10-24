@@ -32,6 +32,12 @@ export const isCube = (id: number): boolean => id !== Block.Air && !isStairs(id)
 // the plane, so the rest of the cell stays free.
 export const WALL_THICKNESS = 0.1;
 export const WALL_COLOR = 0xe3dccd;
+// A wall is drawn this much bigger than its slab, outwards from its cell and upwards: it is the outermost skin of the world. Whatever
+// else is in the cell (a floor, a roof, stairs, a block) ends on the border of the cell, in the plane of the wall, and two faces in
+// one plane flicker where they overlap, the nearer one is whichever the rounding of the depth picks. With the skin the border faces
+// are inside the wall, and the faces of the wall are in no plane but its own. Nothing is cut out of a floor or a block to make room:
+// they stay whole, so there are no cracks between them. It is far under what the eye or the body feels, and over the step of the depth buffer.
+export const WALL_SKIN = 0.01;
 
 // A floor is the top face of the cell below it: the slab of the cell y lies under the plane y + 1, so a character
 // standing on the plane stands on the slab. The roof is the top slab of the highest storey.
