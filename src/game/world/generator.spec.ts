@@ -1,9 +1,14 @@
 import { SceneId, generateWorld, randomSeed } from './generator';
 
-// The same world twice: every layer of the data equal.
+// The same world twice: every layer of the data equal, the same life in it.
 function sameWorld(a: ReturnType<typeof generateWorld>, b: ReturnType<typeof generateWorld>): boolean {
   const layers = ['blocks', 'walls', 'tops', 'frames', 'buildings'] as const;
-  return layers.every((layer) => a.world[layer].every((value, i) => value === b.world[layer][i])) && a.spawn.x === b.spawn.x && a.spawn.z === b.spawn.z;
+  return (
+    layers.every((layer) => a.world[layer].every((value, i) => value === b.world[layer][i])) &&
+    a.spawn.x === b.spawn.x &&
+    a.spawn.z === b.spawn.z &&
+    JSON.stringify(a.population) === JSON.stringify(b.population)
+  );
 }
 
 describe('generateWorld', () => {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { Steering } from './steering';
 
 // The model is a file of the app (public/models), not of a CDN: the game does not depend on anyone's server to show its character.
@@ -45,12 +46,24 @@ function measure(model: THREE.Object3D): THREE.Box3 {
   return rigid.isEmpty() ? new THREE.Box3().setFromObject(model, true) : rigid;
 }
 
-export async function loadRobot(): Promise<Robot> {
-  return new Robot(await new GLTFLoader().loadAsync(MODEL_URL));
+// The model is loaded once; every robot of the game is made from it (see Robot).
+export function loadRobotModel(): Promise<GLTF> {
+  return new GLTFLoader().loadAsync(MODEL_URL);
 }
 
-// The playable character: a Group (`root`) that the game positions, animated by the model's own clips,
-// with the upper body twisted towards the cursor.
+// The materials of a mesh as copies with their colour multiplied by the tint, so that the robots made from one model can differ.
+function tinted(material: THREE.Material | THREE.Material[], tint: THREE.Color): THREE.Material | THREE.Material[] {
+  const paint = (original: THREE.Material): THREE.Material => {
+    const copy = original.clone();
+    (copy as THREE.MeshStandardMaterial).color?.multiply(tint);
+    return copy;
+  };
+  return Array.isArray(material) ? material.map(paint) : paint(material);
+}
+
+// A character: a Group (`root`) that the game positions, animated by the model's own clips, with the upper body twisted
+// towards where it looks. Any number of them can be made from one loaded model, each with a skeleton of its own; those with a
+// tint are of that colour.
 export class Robot {
   readonly root = new THREE.Group();
   readonly steering = new Steering();
@@ -60,13 +73,15 @@ export class Robot {
   // `clean` = the bone's rotation as the animation left it, before our twist.
   private readonly spine: { bone: THREE.Object3D; share: number; clean: THREE.Quaternion }[];
 
-  constructor(gltf: GLTF) {
-    const model = gltf.scene;
+  constructor(gltf: GLTF, tint?: THREE.ColorRepresentation) {
+    const model = clone(gltf.scene);
+    const color = tint === undefined ? null : new THREE.Color(tint);
     model.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         o.castShadow = true;
         o.receiveShadow = true; // in the shade of a roof or a wall the robot is dark, too
         o.frustumCulled = false; // skinned bounds are computed in the bind pose
+        if (color) o.material = tinted(o.material, color);
       }
     });
     const bounds = measure(model);

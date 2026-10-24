@@ -102,5 +102,5 @@ export function generateTown(seed: number): GeneratedWorld {
 
   fillColumns(world, center - SPAWN_CLEARING, center - SPAWN_CLEARING, SPAWN_CLEARING * 2, SPAWN_CLEARING * 2, 0);
 
-  return { world, spawn: { x: center + 0.5, z: center + 0.5 }, biome: Biome.Surface };
+  return { world, spawn: { x: center + 0.5, z: center + 0.5 }, biome: Biome.Surface, population: { nodes: [], creatures: [] } };
 }

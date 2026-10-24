@@ -10,7 +10,7 @@ describe('routes', () => {
     }
   });
 
-  it('any other address leads to the town', () => {
-    expect(routes.find((r) => r.path === '**')?.redirectTo).toBe(SceneId.Town);
+  it('any other address leads to the plainfield', () => {
+    expect(routes.find((r) => r.path === '**')?.redirectTo).toBe(SceneId.Plainfield);
   });
 });

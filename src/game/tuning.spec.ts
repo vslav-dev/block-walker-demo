@@ -21,6 +21,7 @@ describe('GAME_TUNABLES', () => {
     expect(shownIn('Day and night')).toEqual(new Set([Biome.Surface]));
     expect(shownIn('Light')).toEqual(new Set([Biome.Interior]));
     expect(shownIn('Camera')).toEqual(new Set([undefined]));
+    expect(shownIn('Simulation')).toEqual(new Set([undefined]));
     expect(BIOME_RULES[Biome.Surface].sky && !BIOME_RULES[Biome.Interior].sky, 'the panel follows the biomes').toBe(true);
   });
 });

@@ -1,8 +1,8 @@
 import { Aim } from '@game/aim/aim';
 import { AimLine } from '@game/aim/aim-line';
 import { CameraRig } from '@game/camera/camera-rig';
-import { PlayerBody, RUN_SPEED, WALK_SPEED } from '@game/character/player-body';
-import { Robot, loadRobot } from '@game/character/robot';
+import { Body, RUN_SPEED, WALK_SPEED } from '@game/character/body';
+import { Robot, loadRobotModel } from '@game/character/robot';
 import {
   ANTIALIAS_BELOW_RATIO,
   CAMERA_FAR,
@@ -24,7 +24,11 @@ import { Darkness, type Atmosphere } from '@game/lighting/atmosphere';
 import { Lighting } from '@game/lighting/lighting';
 import { createReadouts } from '@game/readouts';
 import { ResolutionGovernor } from '@game/resolution-governor';
-import { Sight } from '@game/sight/sight';import type { GameTuning } from '@game/tuning';
+import { Sight } from '@game/sight/sight';
+import { Simulation } from '@game/sim/simulation';
+import { CreaturesView } from '@game/sim-view/creatures-view';
+import { NodesView } from '@game/sim-view/nodes-view';
+import type { GameTuning } from '@game/tuning';
 import { BIOME_RULES, type Biome } from '@game/world/biome';
 import { generateWorld, type SceneId } from '@game/world/generator';
 import { WorldView } from '@game/world-view/world-view';
@@ -41,7 +45,8 @@ export interface GameOptions {
 // and it shows what it has to say (`readouts`) for the app to put on the screen.
 export class Game {
   readonly tuning: GameTuning;
-  readonly body: PlayerBody;
+  readonly sim: Simulation; // the life of the world: creatures and what they live off; the views below only show it
+  readonly body: Body;
   readonly aim: Aim;
   readonly rig: CameraRig;
   readonly readouts: Readout[];
@@ -55,6 +60,8 @@ export class Game {
   private readonly scene = new THREE.Scene();
   private readonly camera: THREE.PerspectiveCamera;
   private readonly worldView: WorldView;
+  private readonly nodesView: NodesView;
+  private readonly creaturesView: CreaturesView;
   private readonly sight: Sight | null; // null where the whole picture is shown
   private readonly input: Input;
   private readonly aimLine: AimLine;
@@ -71,7 +78,7 @@ export class Game {
   constructor(container: HTMLElement, { scene, seed }: GameOptions, host: GameHost) {
     this.tuning = host.tuning;
 
-    const { world, spawn, biome } = generateWorld(scene, seed);
+    const { world, spawn, biome, population } = generateWorld(scene, seed);
     const rules = BIOME_RULES[biome];
     this.biome = biome;
 
@@ -92,7 +99,10 @@ export class Game {
     this.lighting = new Lighting(world, this.scene, this.tuning, rules.carriesLight);
     this.sight = rules.limitedSight ? new Sight(world, this.scene) : null;
     this.worldView = new WorldView(world, this.scene, { wallFade: rules.wallFade, sight: this.sight });
-    this.body = new PlayerBody(world, spawn.x, spawn.z);
+    this.sim = new Simulation(world, population, seed);
+    this.nodesView = new NodesView(this.sim, this.scene);
+    this.creaturesView = new CreaturesView(this.sim, this.scene, this.tuning, rules.bodyShadow);
+    this.body = new Body(world, spawn.x, spawn.z);
     this.visualY = this.body.y;
     this.input = new Input(this.renderer.domElement, host.settings);
     this.aim = new Aim(host.settings);
@@ -123,11 +133,13 @@ export class Game {
 
   // Loads the character's model and puts it into the world. The game goes on without it if that fails.
   async loadCharacter(): Promise<void> {
-    const robot = await loadRobot();
+    const model = await loadRobotModel();
     if (this.disposed) return;
+    const robot = new Robot(model);
     robot.setCastsShadow(BIOME_RULES[this.biome].bodyShadow);
     this.scene.add(robot.root);
     this.robot = robot;
+    this.creaturesView.show(model);
   }
 
   // Stops the frames and gives everything back: the listeners, the pointer, the canvas and the graphics memory.
@@ -160,16 +172,24 @@ export class Game {
     if (ratio !== null) this.renderer.setPixelRatio(ratio);
   }
 
-  // One step of the game. The order matters: the camera follows the character where it has just moved, the sky follows
-  // the camera, the aim reads the camera that has just turned, the light in the hand goes where the aim says, and the
-  // character is drawn where the body is.
+  // One step of the game. The order matters: the world lives on first, the camera follows the character where it has just
+  // moved, the sky follows the camera, the aim reads the camera that has just turned, the light in the hand goes where the aim
+  // says, and the character is drawn where the body is.
   private step(dt: number): void {
+    this.updateLife(dt);
     const move = this.moveCharacter(dt);
     this.followWithCamera(dt);
     this.atmosphere.update(dt, this.rig.target);
     this.updateAim(dt);
     this.lighting.update(dt, this.body.x, this.visualY, this.body.z, this.aim.yaw);
     this.updateCharacter(dt, move);
+  }
+
+  // The simulation lives its time (as fast as the panel says), and the views show where it has got to.
+  private updateLife(dt: number): void {
+    this.sim.update(dt * this.tuning.simSpeed);
+    this.nodesView.update();
+    this.creaturesView.update(dt);
   }
 
   // Returns the direction of the movement: a unit vector, or (0, 0) if the character stands.

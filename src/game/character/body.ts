@@ -24,8 +24,8 @@ const SAMPLES = [
   [-RADIUS, -RADIUS],
 ];
 
-// Position and collision of the player on the voxel world. Rendering is not its business.
-export class PlayerBody {
+// Position and collision of a character (the player, a creature of the simulation) on the voxel world. Rendering is not its business.
+export class Body {
   x: number;
   y: number;
   z: number;

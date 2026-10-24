@@ -7,4 +7,5 @@ export const RenderOrder = {
   FadedWall: 8, // after that: a wall that fades does not count in what is seen, and is drawn only over what is seen
   Beacon: 10, // over the walls: it shows through them
   AimLineOverEverything: 11, // after the beacons
+  CreatureLabel: 12, // the last: what a creature does is written over everything, it shows through walls
 } as const;

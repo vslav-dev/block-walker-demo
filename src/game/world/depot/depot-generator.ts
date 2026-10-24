@@ -104,5 +104,6 @@ export function generateDepot(seed: number): GeneratedWorld {
     world,
     spawn: { x: start.x0 + Math.floor(start.w / 2) + 0.5, z: start.z0 + Math.floor(start.d / 2) + 0.5 },
     biome: Biome.Interior,
+    population: { nodes: [], creatures: [] },
   };
 }

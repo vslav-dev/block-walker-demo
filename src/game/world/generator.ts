@@ -1,4 +1,5 @@
 import { generateDepot } from '@game/world/depot/depot-generator';
+import { generatePlainfield } from '@game/world/plainfield/plainfield-generator';
 import { generateTown } from '@game/world/town/town-generator';
 import type { GeneratedWorld } from '@game/world/world';
 
@@ -7,6 +8,7 @@ import type { GeneratedWorld } from '@game/world/world';
 export const SceneId = {
   Town: 'town', // an open plain with houses of one and two storeys
   Depot: 'depot', // the inside of one big building, divided into rooms
+  Plainfield: 'plainfield', // an open field of grass and berry bushes, and a person who lives off them
 } as const;
 
 export type SceneId = (typeof SceneId)[keyof typeof SceneId];
@@ -15,6 +17,7 @@ export type SceneId = (typeof SceneId)[keyof typeof SceneId];
 const GENERATORS: Record<SceneId, (seed: number) => GeneratedWorld> = {
   [SceneId.Town]: generateTown,
   [SceneId.Depot]: generateDepot,
+  [SceneId.Plainfield]: generatePlainfield,
 };
 
 const SEED_RANGE = 1e6;

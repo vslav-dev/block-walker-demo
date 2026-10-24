@@ -17,6 +17,7 @@ import {
 } from './blocks';
 import type { Biome } from './biome';
 import type { WorldLight } from './light';
+import type { Population } from './population';
 
 export const STEP_UP = 0.55; // max height a character climbs without jumping
 export const BODY_H = 1.7; // character height used for collisions
@@ -31,11 +32,12 @@ export interface Door {
   side: number;
 }
 
-// A world as a generator makes it, where the player stands in it at the start and what kind of place it is.
+// A world as a generator makes it, where the player stands in it at the start, what kind of place it is and what lives in it.
 export interface GeneratedWorld {
   world: World;
   spawn: { x: number; z: number };
   biome: Biome;
+  population: Population;
 }
 
 // Voxel grid + collision queries. Blocks are stored in a flat array, x fastest, then z, then y.

@@ -1,4 +1,4 @@
-import { PlayerBody } from '@game/character/player-body';
+import { Body } from '@game/character/body';
 import { Block, Opening, STOREY_H, StairDir, Top, WALL_SIDES, WallSide, frameValue, isStairs, type WallSideInfo } from '@game/world/blocks';
 import { World } from '@game/world/world';
 
@@ -23,7 +23,7 @@ export function wallWorld(): World {
   return world;
 }
 
-export function walk(body: PlayerBody, vx: number, vz: number, seconds: number): void {
+export function walk(body: Body, vx: number, vz: number, seconds: number): void {
   for (let t = 0; t < seconds; t += DT) body.update(DT, vx, vz);
 }
 
@@ -42,7 +42,7 @@ export function floodFill(world: World, spawn: { x: number; z: number }): Reach 
   const nx = Math.round(world.sizeX / GRID_STEP);
   const nz = Math.round(world.sizeZ / GRID_STEP);
   const point = (i: number) => (i + 0.5) * GRID_STEP;
-  const probe = new PlayerBody(world, spawn.x, spawn.z);
+  const probe = new Body(world, spawn.x, spawn.z);
   const reached = new Uint8Array(nx * nz);
   const queue = [[Math.floor(spawn.x / GRID_STEP), Math.floor(spawn.z / GRID_STEP)]];
   while (queue.length) {

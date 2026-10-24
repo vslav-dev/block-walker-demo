@@ -1,4 +1,4 @@
-import { WALL_REACH } from '@game/character/player-body';
+import { WALL_REACH } from '@game/character/body';
 import { RenderOrder } from '@game/render-order';
 import type { Sight } from '@game/sight/sight';
 import { storeyAt } from '@game/world/blocks';
